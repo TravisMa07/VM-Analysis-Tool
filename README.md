@@ -1,5 +1,7 @@
 # VM-Analysis-Tool
 
+**https://vm-analysis-tool.vercel.app/ (Public Deployment of the VM Tool)**
+
 Open-source vulnerability management analysis and prioritization tooling for reviewing CVE, CVSS, EPSS, and KEV data in one place.
 
 ## Overview
