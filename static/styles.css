@@ -372,3 +372,17 @@ input {
     grid-template-columns: 1fr;
   }
 }
+
+.search-combobox { position: relative; min-width: 0; }
+.search-suggestions {
+  position: absolute; z-index: 10; top: 100%; left: 0; right: 0;
+  margin: 6px 0 0; padding: 6px; list-style: none;
+  max-height: min(420px, 55vh); overflow-y: auto;
+  background: var(--surface-strong); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: var(--shadow);
+}
+.search-suggestions[hidden] { display: none; }
+.search-suggestions li { padding: 12px; border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
+.search-suggestions li:hover, .search-suggestions li[aria-selected="true"] { background: var(--surface-soft); outline: 1px solid var(--brand); }
+.search-suggestions strong, .search-suggestions span { display: block; }
+.search-suggestions span { margin-top: 4px; color: var(--muted); font-size: .85rem; }

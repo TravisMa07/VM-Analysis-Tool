@@ -14,7 +14,8 @@ from vm_analysis.adapters.nvd import search_nvd
 from vm_analysis.assessment import assess
 from vm_analysis.config import REQUEST_TIMEOUT_MS, ROOT
 from vm_analysis.demo import DEMO_ANALYSES, DEMO_SEARCH
-from vm_analysis.models import CveDetailResponse, ErrorResponse, SearchResponse
+from vm_analysis.models import CveDetailResponse, ErrorResponse, SearchResponse, SearchResultItem
+from vm_analysis.suggestions import suggestion_service
 from vm_analysis.service import get_cve_analysis
 from vm_analysis.utils import format_date, format_percent, format_score, is_valid_cve_id, normalize_cve_id
 
@@ -84,6 +85,18 @@ async def api_search(client: Client, q: str = "", limit: str = "10"):
 async def api_cve(cve_id: str, client: Client):
     """Require NVD; return partial analysis if EPSS or KEV is unavailable."""
     return await load_analysis(client, cve_id)
+
+
+@app.get("/api/suggestions", response_model=list[SearchResultItem], responses=API_ERRORS)
+async def api_suggestions(client: Client, q: str = ""):
+    """Return up to four indexed/cached/live CVEs; short queries return no matches."""
+    if len(q) > 200:
+        raise HTTPException(400, "Suggestion queries must be at most 200 characters.")
+    try:
+        return await suggestion_service.search(client, q)
+    except Exception as exc:
+        logger.warning("NVD suggestions failed (%s)", type(exc).__name__)
+        raise HTTPException(502, "Live suggestions unavailable. You can still search.") from exc
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

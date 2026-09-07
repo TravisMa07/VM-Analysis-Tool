@@ -2,7 +2,7 @@
 
 A Python/FastAPI application for searching vulnerabilities and reviewing NVD CVE/CVSS data, FIRST EPSS scores, and CISA KEV status together.
 
-The application uses server-rendered HTML and CSS. React, Next.js, TypeScript, and a Node build are no longer required. A small optional JavaScript file displays search progress; the search form works without JavaScript.
+The application uses server-rendered HTML and CSS. React, Next.js, TypeScript, and a Node build are no longer required. A small optional JavaScript file provides autocomplete and search progress; the search form works without JavaScript.
 
 ## Run locally
 
@@ -64,10 +64,10 @@ FastAPI routes (main.py)
 - `vm_analysis/service.py` combines data and records each source's status. It skips enrichment when NVD has no record.
 - `vm_analysis/assessment.py` contains independently testable prioritization rules. Templates only present their results.
 - `vm_analysis/models.py` defines response data with Pydantic. Python uses snake_case; public JSON uses camelCase for compatibility.
-- `templates/` contains HTML pages; `static/` holds the existing responsive styling and optional search feedback.
+- `templates/` contains HTML pages; `static/` holds the existing responsive styling and optional autocomplete and search feedback.
 - `vm_analysis/data/` contains frozen illustrative demo fixtures. Demo pages do not fetch upstream data; their scores/catalog status are not current intelligence.
 
-Each request owns an HTTPX async client. EPSS and KEV requests overlap using `asyncio.gather`, so one enrichment does not wait for the other. The client closes after the request. There is no database, login, background worker, or persistent cache.
+Each request owns an HTTPX async client. EPSS and KEV requests overlap using `asyncio.gather`, so one enrichment does not wait for the other. The client closes after the request. There is no database, login, background worker, or persistent cache. Autocomplete has a bounded process-local cache.
 
 ## API
 
@@ -139,3 +139,23 @@ For the existing Vercel project, switch its framework preset from Next.js to Fas
 This migration does not itself update the hosted deployment or its dashboard settings. The prior deployment URL is [vm-analysis-tool.vercel.app](https://vm-analysis-tool.vercel.app/).
 
 The root `index.html` remains a separate legacy static demo. It contains its own demo data and JavaScript, does not run the Python service, and is not served as the FastAPI home page. Use `/demo` to review the migrated application.
+
+## Search autocomplete
+
+The live search box suggests common vendors, products, and topics after two characters, plus up to four NVD CVEs after three characters and a 500 ms typing pause. Up to eight matches appear, followed by a separate “Search for…” action. Use arrow keys and Enter to select; Escape dismisses the list. Selecting a term submits its keyword search; selecting a CVE opens its analysis. The form still works without JavaScript.
+
+Edit `static/suggestion-catalog.json` to maintain common terms: each entry has a `label`, `category`, `query`, and `aliases`. Matching ignores case, spaces, and punctuation and ranks exact matches, prefixes, word prefixes, then one-edit typos in names of at least five letters. Aliases such as RCE are supported; this is autocomplete, not semantic retrieval or a complete vendor/product catalog.
+
+`GET /api/suggestions?q=<query>` returns an array of at most four existing search-result objects (camelCase fields). Queries under three characters return `[]`; queries over 200 characters return `400`. Known indexed names and identifiers return verified catalog suggestions without upstream calls. Other complete CVE IDs use exact NVD lookup. Numeric fragments (such as `46300`) match the final CVE number, including across years, using indexed and cached records; no year is guessed and no fuzzy correction is applied to numbers. Incomplete CVE IDs also match indexed and cached records, so prefix coverage is limited. No demo records or enrichment data are used as live suggestions.
+
+Suggestions use a process-local cache (five minutes, at most 256 queries), share identical in-flight requests, and pause new upstream suggestion lookups for 15 seconds after a failure. Failures return `502` with the standard error shape; cached and local suggestions remain usable. The cache resets on restart and is independent across workers/serverless instances. NVD availability and rate limits still apply; no database or background synchronization is added.
+
+Run the Python suite with `uv run pytest -q`; run catalog ranking tests with `node --test tests/search.test.cjs` (Node is optional for these developer tests only).
+
+### Named vulnerability index
+
+`static/vulnerability-index.json` is the editable, version-controlled name index, loaded by both the browser and Python service. Each record includes `cveId`, `label`, `aliases`, `relatedTerms`, `summary`, advisory `sources`, and `verifiedOn`. Add entries using verified advisory mappings and review them as source information changes; the server loads the file at startup, so restart after editing it. This release seeds Fragnesia and the two Dirty Frag CVEs. It is not a complete or automatically synchronized CVE database.
+
+Examples: `46300`, `fragn`, `fragnesia`, and `fragnesa` suggest CVE-2026-46300. `dirty frag`, `dirtyfrag`, and `dirty-frag` suggest CVE-2026-43284 and CVE-2026-43500 first, followed by Fragnesia labeled as related. Relationships do not turn related names into aliases. Matching supports one insertion, deletion, substitution, or adjacent transposition in names of at least five normalized letters. Browser suggestions appear immediately from the index, deduplicate by CVE ID, and link to the existing live analysis page. The index contains no current scores or exploitation claims; opening an analysis still requires NVD availability.
+
+Name and relationship mappings are sourced from [Microsoft's Dirty Frag advisory](https://www.microsoft.com/en-us/security/blog/2026/05/08/active-attack-dirty-frag-linux-vulnerability-expands-post-compromise-risk/) and [AWS's Fragnesia bulletin](https://aws.amazon.com/security/security-bulletins/2026-029-aws/).

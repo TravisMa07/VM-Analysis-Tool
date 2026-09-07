@@ -128,7 +128,7 @@ def test_pages_demo_static_and_docs(api):
     assert client.get("/cve/invalid").status_code == 404
     assert client.get("/missing").status_code == 404
     schema = client.get("/openapi.json").json()
-    assert set(schema["paths"]) == {"/api/search", "/api/cve/{cve_id}"}
+    assert set(schema["paths"]) == {"/api/search", "/api/cve/{cve_id}", "/api/suggestions"}
     assert "cveId" in schema["components"]["schemas"]["CveDetailResponse"]["properties"]
 
 
