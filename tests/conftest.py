@@ -3,6 +3,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from main import app, get_client
+from vm_analysis.adapters.kev import clear_kev_cache
+from vm_analysis.advisory_scraper import clear_advisory_cache
 
 
 @pytest.fixture
@@ -11,6 +13,8 @@ def api():
     def unexpected(request):
         raise AssertionError(f"Unexpected upstream call: {request.url}")
 
+    clear_kev_cache()
+    clear_advisory_cache()
     state = {"handler": unexpected}
 
     async def mock_client():
@@ -22,6 +26,8 @@ def api():
     with TestClient(app) as client:
         yield client, state
     app.dependency_overrides.clear()
+    clear_kev_cache()
+    clear_advisory_cache()
 
 
 @pytest.fixture

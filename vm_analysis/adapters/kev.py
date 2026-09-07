@@ -1,3 +1,5 @@
+import time
+
 import httpx
 
 from vm_analysis.http import UpstreamError, fetch_json
@@ -5,6 +7,8 @@ from vm_analysis.models import KevData
 from vm_analysis.utils import is_valid_cve_id, normalize_cve_id
 
 KEV_API_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+KEV_CACHE_TTL_SECONDS = 900
+_catalog_cache: tuple[float, dict] | None = None
 
 
 def map_kev_entry(payload: dict, cve_id: str) -> KevData:
@@ -22,5 +26,16 @@ def map_kev_entry(payload: dict, cve_id: str) -> KevData:
 
 
 async def get_kev(client: httpx.AsyncClient, cve_id: str) -> KevData:
-    payload = await fetch_json(client, KEV_API_URL, list_key="vulnerabilities")
+    global _catalog_cache
+    now = time.monotonic()
+    if _catalog_cache and now - _catalog_cache[0] < KEV_CACHE_TTL_SECONDS:
+        payload = _catalog_cache[1]
+    else:
+        payload = await fetch_json(client, KEV_API_URL, list_key="vulnerabilities")
+        _catalog_cache = (time.monotonic(), payload)
     return map_kev_entry(payload, cve_id)
+
+
+def clear_kev_cache() -> None:
+    global _catalog_cache
+    _catalog_cache = None

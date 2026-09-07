@@ -1,6 +1,6 @@
 # VM Analysis Tool
 
-A Python/FastAPI application for searching vulnerabilities and reviewing NVD CVE/CVSS data, FIRST EPSS scores, and CISA KEV status together.
+A Python/FastAPI application for searching vulnerabilities and reviewing NVD CVE/CVSS data, FIRST EPSS scores, CISA KEV status, and automatically discovered vendor remediation guidance together.
 
 The application uses server-rendered HTML and CSS. React, Next.js, TypeScript, and a Node build are no longer required. A small optional JavaScript file provides autocomplete and search progress; the search form works without JavaScript.
 
@@ -52,6 +52,7 @@ FastAPI routes (main.py)
                            |
                            +-- NVD metadata (required)
                            +-- EPSS + KEV (concurrent, optional enrichments)
+                           +-- Vendor remediation references (derived from NVD)
                            |
                            v
                   Pydantic response model
@@ -62,10 +63,14 @@ FastAPI routes (main.py)
 
 - `vm_analysis/adapters/` contains one integration per source. Adapters translate external JSON into the application's data models.
 - `vm_analysis/service.py` combines data and records each source's status. It skips enrichment when NVD has no record.
+- `vm_analysis/vendor_sources.py` classifies vendor advisories, patches, release notes, and support links from NVD references into remediation guidance.
+- `vm_analysis/advisory_scraper.py` fetches candidate advisories with bounded caching and extracts versions, packages, update IDs, mitigations, reboot requirements, exploitation language, and display-only vendor commands.
 - `vm_analysis/assessment.py` contains independently testable prioritization rules. Templates only present their results.
 - `vm_analysis/models.py` defines response data with Pydantic. Python uses snake_case; public JSON uses camelCase for compatibility.
 - `templates/` contains HTML pages; `static/` holds the existing responsive styling and optional autocomplete and search feedback.
 - `vm_analysis/data/` contains frozen illustrative demo fixtures. Demo pages do not fetch upstream data; their scores/catalog status are not current intelligence.
+
+Vendor guidance is automatically derived from the NVD reference list and is labelled potentially applicable unless an analyst supplies optional OS/product/version context. It does not prove that an asset is vulnerable. NVD references tagged as vendor advisories, patches, release notes, or support links are promoted into the remediation section; neutral sources such as NVD, CISA, FIRST, and MITRE are excluded.
 
 Each request owns an HTTPX async client. EPSS and KEV requests overlap using `asyncio.gather`, so one enrichment does not wait for the other. The client closes after the request. There is no database, login, background worker, or persistent cache. Autocomplete has a bounded process-local cache.
 
@@ -78,7 +83,7 @@ Each request owns an HTTPX async client. EPSS and KEV requests overlap using `as
 
 CVE identifiers are trimmed and normalized to uppercase. Empty search queries and invalid API CVE IDs return `400`. Missing NVD detail records return `404`; no search matches return `200` with an empty results list. NVD failures return `502`. Errors retain the `{"error": "message"}` shape.
 
-EPSS or KEV failure does not discard a valid NVD record: the response is `200`, with the failing source marked `error` in `sourceStatus`.
+EPSS or KEV failure does not discard a valid NVD record: the response is `200`, with the failing source marked `error` in `sourceStatus`. Optional `os`, `product`, and `version` query parameters on the CVE endpoint mark automatically discovered guidance as potentially applicable without changing the global CVE assessment.
 
 **Intentional compatibility change:** `kev.listed` is now nullable. `true` means listed, `false` means a successful catalog lookup found no match, and `null` means the catalog could not be checked. Consumers must not treat `null` as a confirmed negative. Missing optional fields are serialized as JSON `null`.
 
@@ -151,6 +156,12 @@ Edit `static/suggestion-catalog.json` to maintain common terms: each entry has a
 Suggestions use a process-local cache (five minutes, at most 256 queries), share identical in-flight requests, and pause new upstream suggestion lookups for 15 seconds after a failure. Failures return `502` with the standard error shape; cached and local suggestions remain usable. The cache resets on restart and is independent across workers/serverless instances. NVD availability and rate limits still apply; no database or background synchronization is added.
 
 Run the Python suite with `uv run pytest -q`; run catalog ranking tests with `node --test tests/search.test.cjs` (Node is optional for these developer tests only).
+
+### Automated vendor remediation
+
+The live analysis does not require a pre-seeded CVE catalog. NVD supplies the reference URLs and tags; the application classifies likely vendor remediation links and presents them with an automated action summary. Since NVD references do not consistently contain fixed package versions or complete remediation steps, the user must open the official source to confirm the applicable release and update.
+
+The detail page separates global priority from applicability, shows vendor guidance independently from NVD/EPSS/KEV references, provides optional analyst context filters, and renders an evidence-ready summary for handoff. Asset context is not persisted and no external CMDB is required.
 
 ### Named vulnerability index
 

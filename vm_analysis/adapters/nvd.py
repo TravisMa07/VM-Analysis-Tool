@@ -2,7 +2,7 @@ import httpx
 
 from vm_analysis.config import NVD_API_KEY
 from vm_analysis.http import UpstreamError, fetch_json
-from vm_analysis.models import CvssData, NvdDetail, SearchResponse, SearchResultItem
+from vm_analysis.models import CveReference, CvssData, NvdDetail, SearchResponse, SearchResultItem
 from vm_analysis.utils import is_valid_cve_id, normalize_cve_id, truncate_text
 
 NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
@@ -38,7 +38,9 @@ def map_nvd_record_to_detail(record: dict) -> NvdDetail:
         description=english_value(cve.get("descriptions") or []) or "No description provided by NVD.",
         published=cve.get("published"), last_modified=cve.get("lastModified"),
         cwes=[value for value in cwes if value],
-        references=[ref for ref in cve.get("references") or [] if ref.get("url")],
+        references=[CveReference(url=ref["url"], source=", ".join(ref.get("tags") or []) or None,
+                                 tags=ref.get("tags") or [])
+                    for ref in cve.get("references") or [] if ref.get("url")],
         cvss=map_metric_to_cvss(preferred),
     )
 

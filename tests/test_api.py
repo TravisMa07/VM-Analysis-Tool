@@ -32,6 +32,71 @@ def test_detail_json_contract(api, nvd_record):
     assert "cve_id" not in data
 
 
+def test_vendor_guidance_is_structured_and_filterable(api, nvd_record):
+    nvd_record["cve"]["id"] = "CVE-2024-1086"
+    nvd_record["cve"]["references"] = [{
+        "url": "https://ubuntu.com/security/CVE-2024-1086",
+        "tags": ["Vendor Advisory", "Patch"],
+    }]
+    client, state = api
+    base = upstreams(nvd_record)
+    def handler(request):
+        if request.url.host == "ubuntu.com":
+            return httpx.Response(200, headers={"content-type": "text/html"}, text="""
+                <html><title>Ubuntu kernel security notice</title><body>
+                <h2>Fix</h2><p>Affected versions: Ubuntu kernels before 6.5.0-41</p>
+                <p>Fixed versions: 6.5.0-41</p><pre>sudo apt-get update
+                sudo apt-get install --only-upgrade linux-image-generic</pre>
+                <p>Reboot required after the kernel update.</p></body></html>
+            """)
+        return base(request)
+    state["handler"] = handler
+    response = client.get("/api/cve/CVE-2024-1086", params={"os": "Ubuntu", "product": "kernel"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["vendorGuidanceStatus"] == "matched"
+    assert len(data["vendorGuidance"]) == 1
+    assert data["vendorGuidance"][0]["vendor"] == "Ubuntu"
+    assert data["vendorGuidance"][0]["applicability"] == "potentially_applicable"
+    assert data["sourceFreshness"]["nvdLastModified"] is None
+
+
+def test_vendor_guidance_does_not_claim_asset_applicability(api, nvd_record):
+    nvd_record["cve"]["id"] = "CVE-2024-1086"
+    nvd_record["cve"]["references"] = [{
+        "url": "https://ubuntu.com/security/CVE-2024-1086",
+        "tags": ["Vendor Advisory"],
+    }]
+    client, state = api
+    base = upstreams(nvd_record)
+    state["handler"] = lambda request: httpx.Response(
+        200, headers={"content-type": "text/html"},
+        text="<html><p>Fixed versions: Ubuntu kernel 6.5.0-41</p></html>"
+    ) if request.url.host == "ubuntu.com" else base(request)
+    data = client.get("/api/cve/CVE-2024-1086").json()
+    assert data["vendorGuidanceStatus"] == "matched"
+    assert all(item["applicability"] == "needs_asset_context" for item in data["vendorGuidance"])
+
+
+def test_vendor_guidance_is_visible_in_html(api, nvd_record):
+    nvd_record["cve"]["id"] = "CVE-2024-1086"
+    nvd_record["cve"]["references"] = [{
+        "url": "https://ubuntu.com/security/CVE-2024-1086",
+        "tags": ["Vendor Advisory"],
+    }]
+    client, state = api
+    base = upstreams(nvd_record)
+    state["handler"] = lambda request: httpx.Response(
+        200, headers={"content-type": "text/html"},
+        text="<html><p>Fixed versions: Ubuntu kernel 6.5.0-41</p></html>"
+    ) if request.url.host == "ubuntu.com" else base(request)
+    html = client.get("/cve/CVE-2024-1086").text
+    assert "Vendor remediation" in html
+    assert "Vendor remediation source" in html
+    assert "Potentially applicable" in html
+    assert "Source freshness" in html
+
+
 def test_mismatched_nvd_identifier_is_not_enriched(api, nvd_record):
     client, state = api
     nvd_record["cve"]["id"] = "CVE-2024-9999"
@@ -130,6 +195,13 @@ def test_pages_demo_static_and_docs(api):
     schema = client.get("/openapi.json").json()
     assert set(schema["paths"]) == {"/api/search", "/api/cve/{cve_id}", "/api/suggestions"}
     assert "cveId" in schema["components"]["schemas"]["CveDetailResponse"]["properties"]
+
+
+def test_demo_analysis_can_show_local_vendor_guidance(api):
+    client, _ = api
+    html = client.get("/cve/CVE-2024-3400?demo=1").text
+    assert "Vendor remediation" in html
+    assert "Palo Alto Networks" in html
 
 
 def test_html_search_and_escaping(api, nvd_record):

@@ -47,6 +47,61 @@ class SourceStatus(ApiModel):
 class CveReference(ApiModel):
     url: str
     source: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class VendorGuidance(ApiModel):
+    cve_id: str
+    vendor: str
+    product: str
+    platform: str
+    component: str | None = None
+    title: str | None = None
+    affected_versions: str | None = None
+    fixed_version: str | None = None
+    advisory_url: str
+    package_url: str | None = None
+    remediation: str
+    mitigation: str | None = None
+    verified_on: str
+    confidence: Literal["reviewed", "needs_review"] = "reviewed"
+    applicability: Literal["potentially_applicable", "needs_asset_context"] = "needs_asset_context"
+    source_type: Literal["vendor_advisory", "patch", "release_notes", "support"] = "vendor_advisory"
+    automated: bool = True
+    packages: list[str] = Field(default_factory=list)
+    update_identifiers: list[str] = Field(default_factory=list)
+    commands: list["AdvisoryCommand"] = Field(default_factory=list)
+    reboot_required: bool | None = None
+    exploitation_status: str | None = None
+    extraction_confidence: Literal["high", "medium", "low", "none"] = "none"
+    extraction_warnings: list[str] = Field(default_factory=list)
+    fetched_at: str | None = None
+    expires_at: str | None = None
+    stale: bool = False
+    advisory_status: Literal["not_available", "discovered", "extracted", "partial", "stale", "error"] = "discovered"
+    source_section: str | None = None
+
+
+class AdvisoryCommand(ApiModel):
+    command: str
+    platform: str | None = None
+    source_url: str
+    source_section: str | None = None
+    confidence: Literal["high", "medium", "low"] = "medium"
+    warning: str = "Vendor-provided command; display only. Review before execution."
+
+
+class SourceFreshness(ApiModel):
+    nvd_last_modified: str | None = None
+    epss_date: str | None = None
+    kev_date_added: str | None = None
+    vendor_verified_on: str | None = None
+
+
+class AssetContext(ApiModel):
+    os: str | None = None
+    product: str | None = None
+    version: str | None = None
 
 
 class NvdDetail(ApiModel):
@@ -63,6 +118,11 @@ class CveDetailResponse(NvdDetail):
     epss: EpssData | None
     kev: KevData
     source_status: SourceStatus
+    vendor_guidance: list[VendorGuidance] = Field(default_factory=list)
+    vendor_guidance_status: Literal["matched", "not_available", "error"] = "not_available"
+    source_freshness: SourceFreshness = Field(default_factory=SourceFreshness)
+    asset_context: AssetContext | None = None
+    advisory_status: Literal["not_available", "discovered", "extracted", "partial", "stale", "error"] = "not_available"
 
 
 class SearchResultItem(ApiModel):

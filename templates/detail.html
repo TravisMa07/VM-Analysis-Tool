@@ -21,7 +21,21 @@
       <span class="pill {{ 'danger' if cve.source_status.kev == 'error' else 'warn' if cve.kev.listed else '' }}">{{ kev_label }}</span>
     </div>
     {% if assessment.incomplete %}<p class="error-text">Intelligence is incomplete. Available signals may justify action, but missing data must not lower the priority.</p>{% endif %}
+    <h3>Global priority evidence</h3>
+    <ul class="evidence-list">{% for signal in signals %}<li>{{ signal }}</li>{% endfor %}</ul>
+    <div class="data-list">{{ row('Applicability', 'Potentially applicable vendor guidance; installed product and version still need confirmation.' if cve.vendor_guidance else 'No vendor remediation reference was identified in the NVD record.') }}</div>
     <div class="data-list">{{ row('Judgment', assessment.detail) }}{{ row('Decision Guidance', assessment.decision) }}</div>
+  </section>
+  <section class="card full-width">
+    <h2>Optional asset context</h2>
+    <p>Filter vendor guidance using analyst-provided context. This does not prove the asset is vulnerable and is not persisted.</p>
+    <form class="context-form" method="get" action="/cve/{{ cve.cve_id }}">
+      <input type="hidden" name="demo" value="{{ '1' if demo else '' }}">
+      <label>OS/distribution<input name="os" value="{{ cve.asset_context.os if cve.asset_context else '' }}" placeholder="Ubuntu Linux, Windows"></label>
+      <label>Product/package<input name="product" value="{{ cve.asset_context.product if cve.asset_context else '' }}" placeholder="Linux kernel, Microsoft Outlook"></label>
+      <label>Installed version<input name="version" value="{{ cve.asset_context.version if cve.asset_context else '' }}" placeholder="Optional version"></label>
+      <button class="ghost-button" type="submit">Filter guidance</button>
+    </form>
   </section>
   <section class="card full-width">
     <h2>CVE Overview</h2><p>Core NVD metadata for the selected vulnerability.</p>
@@ -48,8 +62,43 @@
     </div>
   </section>
   <section class="card full-width">
-    <h2>References</h2><p>Canonical source links for the CVE, EPSS, and KEV data shown here.</p>
+    <h2>Vendor remediation</h2>
+    <p>Official vendor source and the recommended update path. Confirm the installed OS, product, and version before treating the guidance as applicable.</p>
+    {% if cve.vendor_guidance %}
+    <div class="vendor-guidance-list">
+      {% for guidance in cve.vendor_guidance %}
+      <article class="vendor-guidance-entry">
+        <div class="inline-meta"><span class="pill">{{ guidance.vendor }}</span><span class="pill">{{ guidance.platform }}</span><span class="pill {{ 'danger' if guidance.advisory_status == 'error' else 'warn' if guidance.stale or guidance.advisory_status == 'partial' else '' }}">{{ guidance.advisory_status|replace('_', ' ')|title }}</span><span class="pill warn">{{ 'Potentially applicable' if guidance.applicability == 'needs_asset_context' else 'Context filtered' }}</span></div>
+        {% if guidance.title %}<h3>{{ guidance.title }}</h3>{% endif %}
+        <div class="data-list">
+          {{ row('Product / component', guidance.product ~ (' · ' ~ guidance.component if guidance.component else '')) }}
+          {{ row('Affected versions', guidance.affected_versions) }}{{ row('Update to', guidance.fixed_version) }}
+          {{ row('Packages', guidance.packages|join(', ') if guidance.packages else none) }}{{ row('Update identifiers', guidance.update_identifiers|join(', ') if guidance.update_identifiers else none) }}
+          {{ row('What to do', guidance.remediation) }}{% if guidance.mitigation %}{{ row('Temporary mitigation', guidance.mitigation) }}{% endif %}
+          {{ row('Reboot/restart', 'Required or mentioned by the vendor' if guidance.reboot_required else 'Not identified') }}{{ row('Exploitation status', guidance.exploitation_status) }}
+          {{ row('Extracted', guidance.fetched_at) }}
+        </div>
+        {% if guidance.commands %}<div class="command-warning">Display only. Review the vendor advisory and change-control procedure before execution.</div>{% for command in guidance.commands %}<pre class="vendor-command"><code>{{ command.command }}</code></pre>{% endfor %}{% endif %}
+        {% if guidance.extraction_warnings %}<ul class="warning-list">{% for warning in guidance.extraction_warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
+        <div class="vendor-links"><a class="primary-button" href="{{ guidance.advisory_url }}" target="_blank" rel="noopener noreferrer">Vendor remediation source</a>{% if guidance.package_url %}<a class="ghost-button" href="{{ guidance.package_url }}" target="_blank" rel="noopener noreferrer">Package/update source</a>{% endif %}</div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}<p>No vendor remediation reference was identified in the NVD record. Review the general references and verify the affected product with the vendor.</p>{% endif %}
+  </section>
+  <section class="card full-width">
+    <h2>General references</h2><p>Canonical source links for the CVE, EPSS, and KEV data shown here. Vendor links are shown separately above.</p>
     <ul class="reference-list">{% for reference in cve.references %}<li class="reference-item"><a href="{{ reference.url }}" target="_blank" rel="noopener noreferrer">{{ reference.source }}: {{ reference.url }}</a></li>{% endfor %}</ul>
+  </section>
+  <section class="card full-width">
+    <h2>Evidence-ready summary</h2>
+    <p>Copy this summary into change management or an analyst handoff. It does not claim confirmed asset exposure.</p>
+    <textarea class="evidence-summary" readonly>{{ cve.cve_id }} — {{ assessment.label }}
+Global priority evidence: {{ signals|join('; ') }}
+Applicability: {{ 'Potentially applicable vendor guidance; confirm installed product/version.' if cve.vendor_guidance else 'No vendor remediation reference identified in NVD.' }}
+Vendor guidance: {% for guidance in cve.vendor_guidance %}{{ guidance.vendor }} / {{ guidance.product }} — fixed update: {{ guidance.fixed_version }} — {{ guidance.advisory_url }}{% if not loop.last %}; {% endif %}{% else %}None{% endfor %}
+Recommended action: {{ assessment.decision }}
+Source freshness: NVD {{ cve.source_freshness.nvd_last_modified or 'unavailable' }}, EPSS {{ cve.source_freshness.epss_date or 'unavailable' }}, KEV {{ cve.source_freshness.kev_date_added or 'unavailable' }}, vendor {{ cve.source_freshness.vendor_verified_on or 'unavailable' }}.</textarea>
   </section>
 </div>
 {% endblock %}

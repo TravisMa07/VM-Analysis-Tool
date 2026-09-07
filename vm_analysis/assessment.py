@@ -40,3 +40,21 @@ def assess(cve: CveDetailResponse) -> Assessment:
         detail = "Available source signals fall below this tool's expedited remediation thresholds."
         decision = "Confirm exposure and business impact, maintain backlog triage, and monitor for changes."
     return Assessment(label, detail, decision, incomplete)
+
+
+def signals(cve: CveDetailResponse) -> list[str]:
+    """Return concise evidence explaining the global priority and applicability state."""
+    evidence = []
+    if cve.kev.listed is True:
+        evidence.append("Known exploited: CISA KEV")
+    if cve.cvss.base_score is not None and cve.cvss.base_score >= 9:
+        evidence.append("Critical severity: CVSS")
+    if cve.epss and cve.epss.score is not None and cve.epss.score >= 0.7:
+        evidence.append("High exploitation probability: EPSS")
+    if cve.vendor_guidance:
+        evidence.append("Vendor fix identified")
+    else:
+        evidence.append("Vendor guidance unavailable for this CVE")
+    if cve.vendor_guidance and cve.asset_context is None:
+        evidence.append("Affected product not confirmed")
+    return evidence

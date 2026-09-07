@@ -11,12 +11,13 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from vm_analysis.adapters.nvd import search_nvd
-from vm_analysis.assessment import assess
+from vm_analysis.assessment import assess, signals
 from vm_analysis.config import REQUEST_TIMEOUT_MS, ROOT
 from vm_analysis.demo import DEMO_ANALYSES, DEMO_SEARCH
-from vm_analysis.models import CveDetailResponse, ErrorResponse, SearchResponse, SearchResultItem
+from vm_analysis.models import AssetContext, CveDetailResponse, ErrorResponse, SearchResponse, SearchResultItem
 from vm_analysis.suggestions import suggestion_service
 from vm_analysis.service import get_cve_analysis
+from vm_analysis.vendor_sources import automated_vendor_guidance
 from vm_analysis.utils import format_date, format_percent, format_score, is_valid_cve_id, normalize_cve_id
 
 app = FastAPI(title="VM Analysis Tool", version="0.2.0",
@@ -62,11 +63,12 @@ async def run_search(client: httpx.AsyncClient, q: str, limit: str) -> SearchRes
         raise HTTPException(502, "Unable to search NVD at this time. Please try again.") from exc
 
 
-async def load_analysis(client: httpx.AsyncClient, cve_id: str) -> CveDetailResponse:
+async def load_analysis(client: httpx.AsyncClient, cve_id: str,
+                        asset_context: AssetContext | None = None) -> CveDetailResponse:
     if not is_valid_cve_id(cve_id):
         raise HTTPException(400, "The supplied CVE ID is invalid.")
     try:
-        result = await get_cve_analysis(client, normalize_cve_id(cve_id))
+        result = await get_cve_analysis(client, normalize_cve_id(cve_id), asset_context)
     except Exception as exc:
         logger.warning("NVD detail failed (%s)", type(exc).__name__)
         raise HTTPException(502, "Unable to load the CVE analysis right now. Please try again.") from exc
@@ -82,9 +84,11 @@ async def api_search(client: Client, q: str = "", limit: str = "10"):
 
 
 @app.get("/api/cve/{cve_id}", response_model=CveDetailResponse, responses=API_ERRORS)
-async def api_cve(cve_id: str, client: Client):
-    """Require NVD; return partial analysis if EPSS or KEV is unavailable."""
-    return await load_analysis(client, cve_id)
+async def api_cve(cve_id: str, client: Client, os: str | None = None,
+                  product: str | None = None, version: str | None = None):
+    """Require NVD; optionally filter vendor guidance by analyst-provided asset context."""
+    context = AssetContext(os=os, product=product, version=version) if any((os, product, version)) else None
+    return await load_analysis(client, cve_id, context)
 
 
 @app.get("/api/suggestions", response_model=list[SearchResultItem], responses=API_ERRORS)
@@ -119,17 +123,26 @@ async def demo(request: Request):
 
 
 @app.get("/cve/{cve_id}", response_class=HTMLResponse, include_in_schema=False)
-async def detail(request: Request, cve_id: str, client: Client, demo: str = ""):
+async def detail(request: Request, cve_id: str, client: Client, demo: str = "",
+                 os: str | None = None, product: str | None = None,
+                 version: str | None = None):
     if not is_valid_cve_id(cve_id):
         raise HTTPException(404, "The supplied CVE ID is invalid.")
     if demo == "1":
         cve = DEMO_ANALYSES.get(normalize_cve_id(cve_id))
         if cve is None:
             raise HTTPException(404, "This CVE is not in the demo dataset.")
+        guidance = automated_vendor_guidance(cve.cve_id, cve.references)
+        cve = cve.model_copy(update={
+            "vendor_guidance": guidance,
+            "vendor_guidance_status": "matched" if guidance else "not_available",
+        })
     else:
-        cve = await load_analysis(client, cve_id)
+        context = AssetContext(os=os, product=product, version=version) if any((os, product, version)) else None
+        cve = await load_analysis(client, cve_id, context)
     kev_label = ("KEV unavailable" if cve.source_status.kev == "error" else
                  "Listed in KEV" if cve.kev.listed else "Not listed")
     return templates.TemplateResponse(request=request, name="detail.html",
                                       context={"cve": cve, "assessment": assess(cve),
-                                               "kev_label": kev_label, "demo": demo == "1"})
+                                               "signals": signals(cve), "kev_label": kev_label,
+                                               "demo": demo == "1"})
