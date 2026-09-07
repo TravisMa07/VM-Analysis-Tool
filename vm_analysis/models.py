@@ -82,6 +82,14 @@ class VendorGuidance(ApiModel):
     source_section: str | None = None
 
 
+class VendorReference(ApiModel):
+    vendor: str
+    url: str
+    source_type: Literal["vendor_advisory", "patch", "release_notes", "support", "general"] = "general"
+    advisory_status: Literal["not_available", "discovered", "extracted", "partial", "stale", "error"] = "not_available"
+    primary: bool = False
+
+
 class AdvisoryCommand(ApiModel):
     command: str
     platform: str | None = None
@@ -123,6 +131,8 @@ class CveDetailResponse(NvdDetail):
     source_freshness: SourceFreshness = Field(default_factory=SourceFreshness)
     asset_context: AssetContext | None = None
     advisory_status: Literal["not_available", "discovered", "extracted", "partial", "stale", "error"] = "not_available"
+    primary_vendor_guidance: VendorGuidance | None = None
+    vendor_references: list[VendorReference] = Field(default_factory=list)
 
 
 class SearchResultItem(ApiModel):

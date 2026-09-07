@@ -492,3 +492,55 @@ input {
 .search-suggestions li:hover, .search-suggestions li[aria-selected="true"] { background: var(--surface-soft); outline: 1px solid var(--brand); }
 .search-suggestions strong, .search-suggestions span { display: block; }
 .search-suggestions span { margin-top: 4px; color: var(--muted); font-size: .85rem; }
+
+.remediation-truth {
+  margin-top: 18px;
+  padding: 18px;
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius-sm);
+  background: rgba(92, 200, 255, 0.08);
+}
+
+.remediation-truth h3 {
+  margin-top: 18px;
+  line-height: 1.35;
+}
+
+.remediation-truth h3:first-of-type {
+  margin-top: 14px;
+}
+
+.inline-source {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.vendor-reference-details {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.vendor-reference-details > summary {
+  cursor: pointer;
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.vendor-reference-items {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 0;
+  padding-left: 18px;
+}
+
+.vendor-reference-items li {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.vendor-reference-items li a {
+  color: var(--brand);
+}

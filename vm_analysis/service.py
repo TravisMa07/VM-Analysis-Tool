@@ -8,11 +8,46 @@ import httpx
 from vm_analysis.adapters.epss import get_epss
 from vm_analysis.adapters.kev import get_kev
 from vm_analysis.adapters.nvd import get_nvd_cve
-from vm_analysis.models import AssetContext, CveDetailResponse, CveReference, KevData, SourceFreshness, SourceStatus
+from vm_analysis.models import (AssetContext, CveDetailResponse, CveReference, KevData, SourceFreshness,
+                                SourceStatus, VendorGuidance, VendorReference)
 from vm_analysis.utils import normalize_cve_id
 from vm_analysis.advisory_scraper import enrich_vendor_guidance
 
 logger = logging.getLogger(__name__)
+
+
+def guidance_rank(item: VendorGuidance) -> tuple[int, int, int]:
+    status_rank = {"extracted": 0, "partial": 1, "discovered": 2, "stale": 3, "error": 4}.get(item.advisory_status, 5)
+    facts = int(bool(item.fixed_version or item.update_identifiers)) * 3
+    facts += int(bool(item.affected_versions and item.remediation)) * 2
+    source_rank = {"vendor_advisory": 0, "support": 1, "release_notes": 2, "patch": 3}.get(item.source_type, 4)
+    return status_rank, -(facts), source_rank
+
+
+def select_primary_guidance(guidance: list[VendorGuidance]) -> VendorGuidance | None:
+    if not guidance:
+        return None
+    return min(guidance, key=guidance_rank)
+
+
+def vendor_reference_list(guidance: list[VendorGuidance], references: list[CveReference],
+                          primary: VendorGuidance | None) -> list[VendorReference]:
+    result, seen = [], set()
+    primary_url = primary.advisory_url if primary else None
+    for item in guidance:
+        if item.advisory_url in seen:
+            continue
+        seen.add(item.advisory_url)
+        result.append(VendorReference(vendor=item.vendor, url=item.advisory_url,
+                                      source_type=item.source_type, advisory_status=item.advisory_status,
+                                      primary=item.advisory_url == primary_url))
+    for reference in references:
+        if reference.url in seen:
+            continue
+        seen.add(reference.url)
+        result.append(VendorReference(vendor=reference.source or "Reference", url=reference.url,
+                                      source_type="general", advisory_status="not_available"))
+    return result
 
 
 def source_references(cve_id: str) -> list[CveReference]:
@@ -45,8 +80,10 @@ async def get_cve_analysis(client: httpx.AsyncClient, cve_id: str,
     if asset_context:
         guidance = [item.model_copy(update={"applicability": "potentially_applicable"}) for item in guidance]
     data = nvd.model_dump(exclude={"references"})
+    primary = select_primary_guidance(guidance)
+    references = merge_references(nvd.references, source_references(cve_id))
     return CveDetailResponse(
-        **data, references=merge_references(nvd.references, source_references(cve_id)), epss=epss, kev=kev,
+        **data, references=references, epss=epss, kev=kev,
         source_status=SourceStatus(
             nvd="ok", epss="error" if epss_failed else "ok" if epss else "not_found",
             kev="error" if kev_failed else "ok" if kev.listed else "not_listed",
@@ -54,6 +91,8 @@ async def get_cve_analysis(client: httpx.AsyncClient, cve_id: str,
         vendor_guidance=guidance,
         vendor_guidance_status="matched" if guidance else "not_available",
         advisory_status=advisory_status,
+        primary_vendor_guidance=primary,
+        vendor_references=vendor_reference_list(guidance, references, primary),
         source_freshness=SourceFreshness(
             nvd_last_modified=nvd.last_modified,
             epss_date=epss.date if epss else None,

@@ -92,7 +92,8 @@ def test_vendor_guidance_is_visible_in_html(api, nvd_record):
     ) if request.url.host == "ubuntu.com" else base(request)
     html = client.get("/cve/CVE-2024-1086").text
     assert "Vendor remediation" in html
-    assert "Vendor remediation source" in html
+    assert "Authoritative source" in html
+    assert "View all supporting sources" in html
     assert "Potentially applicable" in html
     assert "Source freshness" in html
 

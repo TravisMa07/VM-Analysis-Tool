@@ -16,7 +16,7 @@ from vm_analysis.config import REQUEST_TIMEOUT_MS, ROOT
 from vm_analysis.demo import DEMO_ANALYSES, DEMO_SEARCH
 from vm_analysis.models import AssetContext, CveDetailResponse, ErrorResponse, SearchResponse, SearchResultItem
 from vm_analysis.suggestions import suggestion_service
-from vm_analysis.service import get_cve_analysis
+from vm_analysis.service import get_cve_analysis, select_primary_guidance, vendor_reference_list
 from vm_analysis.vendor_sources import automated_vendor_guidance
 from vm_analysis.utils import format_date, format_percent, format_score, is_valid_cve_id, normalize_cve_id
 
@@ -133,9 +133,12 @@ async def detail(request: Request, cve_id: str, client: Client, demo: str = "",
         if cve is None:
             raise HTTPException(404, "This CVE is not in the demo dataset.")
         guidance = automated_vendor_guidance(cve.cve_id, cve.references)
+        primary = select_primary_guidance(guidance)
         cve = cve.model_copy(update={
             "vendor_guidance": guidance,
             "vendor_guidance_status": "matched" if guidance else "not_available",
+            "primary_vendor_guidance": primary,
+            "vendor_references": vendor_reference_list(guidance, cve.references, primary),
         })
     else:
         context = AssetContext(os=os, product=product, version=version) if any((os, product, version)) else None

@@ -63,32 +63,28 @@
   </section>
   <section class="card full-width">
     <h2>Vendor remediation</h2>
-    <p>Official vendor source and the recommended update path. Confirm the installed OS, product, and version before treating the guidance as applicable.</p>
-    {% if cve.vendor_guidance %}
-    <div class="vendor-guidance-list">
-      {% for guidance in cve.vendor_guidance %}
-      <article class="vendor-guidance-entry">
-        <div class="inline-meta"><span class="pill">{{ guidance.vendor }}</span><span class="pill">{{ guidance.platform }}</span><span class="pill {{ 'danger' if guidance.advisory_status == 'error' else 'warn' if guidance.stale or guidance.advisory_status == 'partial' else '' }}">{{ guidance.advisory_status|replace('_', ' ')|title }}</span><span class="pill warn">{{ 'Potentially applicable' if guidance.applicability == 'needs_asset_context' else 'Context filtered' }}</span></div>
-        {% if guidance.title %}<h3>{{ guidance.title }}</h3>{% endif %}
-        <div class="data-list">
-          {{ row('Product / component', guidance.product ~ (' · ' ~ guidance.component if guidance.component else '')) }}
-          {{ row('Affected versions', guidance.affected_versions) }}{{ row('Update to', guidance.fixed_version) }}
-          {{ row('Packages', guidance.packages|join(', ') if guidance.packages else none) }}{{ row('Update identifiers', guidance.update_identifiers|join(', ') if guidance.update_identifiers else none) }}
-          {{ row('What to do', guidance.remediation) }}{% if guidance.mitigation %}{{ row('Temporary mitigation', guidance.mitigation) }}{% endif %}
-          {{ row('Reboot/restart', 'Required or mentioned by the vendor' if guidance.reboot_required else 'Not identified') }}{{ row('Exploitation status', guidance.exploitation_status) }}
-          {{ row('Extracted', guidance.fetched_at) }}
-        </div>
-        {% if guidance.commands %}<div class="command-warning">Display only. Review the vendor advisory and change-control procedure before execution.</div>{% for command in guidance.commands %}<pre class="vendor-command"><code>{{ command.command }}</code></pre>{% endfor %}{% endif %}
-        {% if guidance.extraction_warnings %}<ul class="warning-list">{% for warning in guidance.extraction_warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
-        <div class="vendor-links"><a class="primary-button" href="{{ guidance.advisory_url }}" target="_blank" rel="noopener noreferrer">Vendor remediation source</a>{% if guidance.package_url %}<a class="ghost-button" href="{{ guidance.package_url }}" target="_blank" rel="noopener noreferrer">Package/update source</a>{% endif %}</div>
-      </article>
-      {% endfor %}
+    <p>The strongest available remediation source is shown below. Confirm the installed OS, product, and version before treating it as applicable.</p>
+    {% set guidance = cve.primary_vendor_guidance %}
+    {% if guidance %}
+    <div class="remediation-truth">
+      <div class="inline-meta"><span class="pill">{{ guidance.vendor }}</span><span class="pill">{{ guidance.platform }}</span><span class="pill">{{ {'extracted': 'Verified remediation details', 'partial': 'Source found; details incomplete', 'error': 'Source unavailable', 'discovered': 'Source identified', 'stale': 'Cached source; refresh needed'}.get(guidance.advisory_status, guidance.advisory_status|replace('_', ' ')|title) }}</span></div>
+      <h3>How to remediate</h3>
+      <p>{{ guidance.remediation }}</p>
+      <div class="data-list">
+        {{ row('Product / component', guidance.product ~ (' · ' ~ guidance.component if guidance.component else '')) }}
+        {{ row('Affected versions', guidance.affected_versions) }}
+        {{ row('Update target', guidance.fixed_version or (guidance.update_identifiers|join(', ') if guidance.update_identifiers else none)) }}
+        {% if guidance.reboot_required is not none %}{{ row('After updating', 'Reboot or restart as required by the vendor.' if guidance.reboot_required else 'No reboot or restart requirement was identified.') }}{% endif %}
+      </div>
+      <h3>Authoritative source</h3>
+      <p><a class="inline-source" href="{{ guidance.advisory_url }}" target="_blank" rel="noopener noreferrer">{{ guidance.title or guidance.advisory_url }}</a></p>
+      <p class="helper-text">Applicability is not confirmed for a specific asset unless asset context is supplied.</p>
     </div>
-    {% else %}<p>No vendor remediation reference was identified in the NVD record. Review the general references and verify the affected product with the vendor.</p>{% endif %}
-  </section>
-  <section class="card full-width">
-    <h2>General references</h2><p>Canonical source links for the CVE, EPSS, and KEV data shown here. Vendor links are shown separately above.</p>
-    <ul class="reference-list">{% for reference in cve.references %}<li class="reference-item"><a href="{{ reference.url }}" target="_blank" rel="noopener noreferrer">{{ reference.source }}: {{ reference.url }}</a></li>{% endfor %}</ul>
+    {% else %}<p>No primary vendor remediation source was identified. Review the supporting references and verify the affected product with the vendor.</p>{% endif %}
+    <details class="vendor-reference-details">
+      <summary>View all supporting sources ({{ cve.vendor_references|length }})</summary>
+      <ul class="vendor-reference-items">{% for reference in cve.vendor_references %}<li><span>{{ reference.vendor }} — {{ reference.source_type|replace('_', ' ')|title }}</span> <span class="pill">{{ {'extracted': 'Verified remediation details', 'partial': 'Source found; details incomplete', 'error': 'Source unavailable', 'discovered': 'Source identified', 'stale': 'Cached source; refresh needed', 'not_available': 'Reference'}.get(reference.advisory_status, reference.advisory_status|replace('_', ' ')|title) }}</span> <a href="{{ reference.url }}" target="_blank" rel="noopener noreferrer">Open source</a></li>{% endfor %}</ul>
+    </details>
   </section>
   <section class="card full-width">
     <h2>Evidence-ready summary</h2>
@@ -96,7 +92,8 @@
     <textarea class="evidence-summary" readonly>{{ cve.cve_id }} — {{ assessment.label }}
 Global priority evidence: {{ signals|join('; ') }}
 Applicability: {{ 'Potentially applicable vendor guidance; confirm installed product/version.' if cve.vendor_guidance else 'No vendor remediation reference identified in NVD.' }}
-Vendor guidance: {% for guidance in cve.vendor_guidance %}{{ guidance.vendor }} / {{ guidance.product }} — fixed update: {{ guidance.fixed_version }} — {{ guidance.advisory_url }}{% if not loop.last %}; {% endif %}{% else %}None{% endfor %}
+Primary vendor guidance: {% if cve.primary_vendor_guidance %}{{ cve.primary_vendor_guidance.vendor }} / {{ cve.primary_vendor_guidance.product }} — fixed update: {{ cve.primary_vendor_guidance.fixed_version or 'See advisory' }} — {{ cve.primary_vendor_guidance.advisory_url }}{% else %}None{% endif %}
+Supporting sources: {{ cve.vendor_references|length }}
 Recommended action: {{ assessment.decision }}
 Source freshness: NVD {{ cve.source_freshness.nvd_last_modified or 'unavailable' }}, EPSS {{ cve.source_freshness.epss_date or 'unavailable' }}, KEV {{ cve.source_freshness.kev_date_added or 'unavailable' }}, vendor {{ cve.source_freshness.vendor_verified_on or 'unavailable' }}.</textarea>
   </section>
