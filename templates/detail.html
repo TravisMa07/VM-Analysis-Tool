@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% macro row(label, value) %}
+<div class="data-row"><span class="data-label">{{ label }}</span><span class="data-value">{{ value if value is not none else 'Not available' }}</span></div>
+{% endmacro %}
+{% block title %}{{ cve.cve_id }} · VM Analysis Tool{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ '/demo' if demo else '/' }}">Back to {{ 'demo' if demo else 'search' }}</a>
+<section class="detail-header">
+  <span class="eyebrow">{{ cve.cve_id }}</span>
+  <h1>One-page vulnerability analysis.</h1>
+  {% if demo %}<p>Illustrative, frozen demo data. Scores and catalog status are not current intelligence.</p>{% endif %}
+  <p>{{ 'Demo' if demo else 'Live' }} source status: NVD {{ cve.source_status.nvd }}, EPSS {{ cve.source_status.epss }}, KEV {{ cve.source_status.kev }}.</p>
+</section>
+<div class="detail-grid">
+  <section class="card full-width">
+    <h2>Assessment</h2><p>Initial remediation guidance from available intelligence. Confirm asset exposure and business impact.</p>
+    <div class="inline-meta">
+      <span class="pill">{{ assessment.label }}</span>
+      <span class="pill">CVSS {{ cve.cvss.base_score|score }}</span>
+      <span class="pill">EPSS {{ (cve.epss.score if cve.epss else none)|percent }}</span>
+      <span class="pill {{ 'danger' if cve.source_status.kev == 'error' else 'warn' if cve.kev.listed else '' }}">{{ kev_label }}</span>
+    </div>
+    {% if assessment.incomplete %}<p class="error-text">Intelligence is incomplete. Available signals may justify action, but missing data must not lower the priority.</p>{% endif %}
+    <div class="data-list">{{ row('Judgment', assessment.detail) }}{{ row('Decision Guidance', assessment.decision) }}</div>
+  </section>
+  <section class="card full-width">
+    <h2>CVE Overview</h2><p>Core NVD metadata for the selected vulnerability.</p>
+    <div class="data-list">{{ row('Description', cve.description) }}{{ row('Published', cve.published|date) }}{{ row('Last Modified', cve.last_modified|date) }}</div>
+    {% if cve.cwes %}<ul class="tag-list">{% for cwe in cve.cwes %}<li class="tag">{{ cwe }}</li>{% endfor %}</ul>
+    {% else %}<p>No CWE metadata was provided by NVD for this record.</p>{% endif %}
+  </section>
+  <section class="card">
+    <h2>CVSS</h2><p>Base scoring from the preferred metric available in NVD.</p>
+    <div class="inline-meta"><span class="pill">Base {{ cve.cvss.base_score|score }}</span><span class="pill">{{ cve.cvss.base_severity or 'Severity unavailable' }}</span><span class="pill">v{{ cve.cvss.version or 'N/A' }}</span></div>
+    <div class="data-list">{{ row('Vector', cve.cvss.vector) }}{{ row('Exploitability Score', cve.cvss.exploitability_score) }}{{ row('Impact Score', cve.cvss.impact_score) }}</div>
+  </section>
+  <section class="card">
+    <h2>EPSS</h2><p>FIRST exploitation probability enrichment.</p>
+    <div class="inline-meta"><span class="pill {{ 'danger' if cve.source_status.epss == 'error' else '' }}">{{ 'Available' if cve.source_status.epss == 'ok' else 'No EPSS record' if cve.source_status.epss == 'not_found' else 'EPSS unavailable' }}</span></div>
+    <div class="data-list">{{ row('EPSS Score', (cve.epss.score if cve.epss else none)|percent) }}{{ row('Percentile', (cve.epss.percentile if cve.epss else none)|percent) }}{{ row('Score Date', (cve.epss.date if cve.epss else none)|date) }}</div>
+  </section>
+  <section class="card">
+    <h2>KEV</h2><p>CISA known exploited vulnerability catalog status.</p>
+    <div class="inline-meta"><span class="pill {{ 'danger' if cve.source_status.kev == 'error' else 'warn' if cve.kev.listed else '' }}">{{ kev_label }}</span></div>
+    <div class="data-list">
+      {{ row('Vendor', cve.kev.vendor_project) }}{{ row('Product', cve.kev.product) }}{{ row('Vulnerability Name', cve.kev.vulnerability_name) }}
+      {{ row('Date Added', cve.kev.date_added|date) }}{{ row('Due Date', cve.kev.due_date|date) }}{{ row('Required Action', cve.kev.required_action) }}{{ row('Notes', cve.kev.notes) }}
+    </div>
+  </section>
+  <section class="card full-width">
+    <h2>References</h2><p>Canonical source links for the CVE, EPSS, and KEV data shown here.</p>
+    <ul class="reference-list">{% for reference in cve.references %}<li class="reference-item"><a href="{{ reference.url }}" target="_blank" rel="noopener noreferrer">{{ reference.source }}: {{ reference.url }}</a></li>{% endfor %}</ul>
+  </section>
+</div>
+{% endblock %}

@@ -1,160 +1,141 @@
-# VM-Analysis-Tool
+# VM Analysis Tool
 
-**https://vm-analysis-tool.vercel.app/ (Public Deployment of the VM Tool)**
+A Python/FastAPI application for searching vulnerabilities and reviewing NVD CVE/CVSS data, FIRST EPSS scores, and CISA KEV status together.
 
-Open-source vulnerability management analysis and prioritization tooling for reviewing CVE, CVSS, EPSS, and KEV data in one place.
+The application uses server-rendered HTML and CSS. React, Next.js, TypeScript, and a Node build are no longer required. A small optional JavaScript file displays search progress; the search form works without JavaScript.
 
-## Overview
+## Run locally
 
-VM Analysis Tool is a web-based project for security teams, vulnerability management analysts, and defenders who need a faster way to review vulnerability context during triage.
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). Dependencies are recorded in `pyproject.toml` and pinned in `uv.lock`.
 
-The app is designed to:
-
-- search by CVE ID or keyword
-- pull live data from NVD, FIRST EPSS, and CISA KEV
-- present a modular one-page CVE analysis
-- provide a quick assessment section for operator judgment and remediation decisions
-
-The repository also includes a standalone `index.html` static demo for UI review on static hosts.
-
-## Features
-
-- Live CVE search against NVD
-- One-page CVE detail view with:
-  - CVE overview
-  - CVSS details
-  - EPSS enrichment
-  - KEV status
-  - combined assessment guidance
-  - canonical source references
-- Modular card-based UI for easy future expansion
-- Standalone static HTML demo for simple hosting and previews
-- Test scaffolding for adapter normalization and aggregation logic
-
-## Data Sources
-
-The live application is built around these public sources:
-
-- NVD CVE API 2.0 for CVE metadata and CVSS
-- FIRST EPSS API for exploitation probability
-- CISA Known Exploited Vulnerabilities catalog for exploitation-in-the-wild tracking
-
-## Project Structure
-
-- `app/`: Next.js App Router pages and API routes
-- `components/`: UI components and analysis cards
-- `lib/`: adapters, types, services, utilities, and demo data
-- `tests/`: initial Vitest coverage
-- `index.html`: static demo UI for simple local/static hosting
-
-## Running Locally
-
-Requirements:
-
-- Node.js 18 or newer
-- npm
-
-Setup:
-
-1. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-2. Start the development server:
-
-   ```bash
-   npm run dev
-   ```
-
-3. Open:
-
-- `http://localhost:3000/` for the live Next.js app
-- `http://localhost:3000/demo` for the bundled demo page
-
-## Environment Variables
-
-Optional:
-
-- `NVD_API_KEY`
-- `REQUEST_TIMEOUT_MS`
-
-Example:
-
-```bash
-cp .env.example .env.local
+```sh
+uv sync --locked
+uv run uvicorn main:app --reload
 ```
 
-## Static Demo
+Open:
 
-The root `index.html` file is a standalone demo UI that works without Node.js, a backend, or build tooling.
+- [Live search](http://127.0.0.1:8000/)
+- [Offline demo](http://127.0.0.1:8000/demo)
+- [Interactive API documentation](http://127.0.0.1:8000/docs)
+- [OpenAPI schema](http://127.0.0.1:8000/openapi.json)
 
-Use it when you want:
+Alternatively, without uv:
 
-- a simple visual preview
-- quick localhost browser testing
-- static hosting on platforms such as GitHub Pages
-
-Important:
-
-- `index.html` is demo-data driven
-- live API aggregation does not run in the static demo
-- live NVD, EPSS, and KEV ingestion requires the Next.js app and server routes
-
-## Deploying
-
-### Vercel
-
-This project is designed to deploy cleanly on Vercel as a Next.js application.
-
-Typical flow:
-
-1. Import the GitHub repository into Vercel
-2. Set any optional environment variables
-3. Deploy the project
-
-### Static Hosting
-
-If you only want the UI preview, host the root `index.html` on a static host.
-
-This is not the live production mode.
-
-## API Routes
-
-The live application exposes internal routes:
-
-- `GET /api/search?q=<query>`
-- `GET /api/cve/<CVE-ID>`
-
-These routes normalize upstream data for the frontend.
-
-## Development Notes
-
-- The UI is intentionally modular so additional sources or scoring models can be added later
-- References are restricted to canonical CVE/NVD, EPSS/FIRST, and KEV/CISA source links
-- The current assessment section provides initial operator guidance and can be tuned further for your workflow
-
-## Testing
-
-Run the test suite with:
-
-```bash
-npm test
+```sh
+python -m venv .venv
+# Windows PowerShell:
+.venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m uvicorn main:app --reload
 ```
 
-## Contributing
+Copy `.env.example` to `.env` to customize the optional settings. The app loads this file automatically; existing environment variables take precedence.
 
-Issues and pull requests are welcome.
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `NVD_API_KEY` | Empty | Optional NVD API key; sent only to NVD from the server |
+| `REQUEST_TIMEOUT_MS` | `8000` | Positive integer; maximum time for each upstream HTTP request |
 
-If you contribute:
+## How it works
 
-- keep the UI modular
-- preserve stable response shapes in the internal API layer
-- isolate upstream source logic inside adapters
+```text
+Browser or API client
+        |
+        v
+FastAPI routes (main.py)
+        |
+        +-- Search --> NVD adapter --> normalized search results
+        |
+        +-- Detail --> analysis service
+                           |
+                           +-- NVD metadata (required)
+                           +-- EPSS + KEV (concurrent, optional enrichments)
+                           |
+                           v
+                  Pydantic response model
+                           |
+                           +-- JSON response for API clients
+                           +-- assessment rules + Jinja HTML for the browser
+```
 
-## License
+- `vm_analysis/adapters/` contains one integration per source. Adapters translate external JSON into the application's data models.
+- `vm_analysis/service.py` combines data and records each source's status. It skips enrichment when NVD has no record.
+- `vm_analysis/assessment.py` contains independently testable prioritization rules. Templates only present their results.
+- `vm_analysis/models.py` defines response data with Pydantic. Python uses snake_case; public JSON uses camelCase for compatibility.
+- `templates/` contains HTML pages; `static/` holds the existing responsive styling and optional search feedback.
+- `vm_analysis/data/` contains frozen illustrative demo fixtures. Demo pages do not fetch upstream data; their scores/catalog status are not current intelligence.
 
-No license file is currently included in this repository.
+Each request owns an HTTPX async client. EPSS and KEV requests overlap using `asyncio.gather`, so one enrichment does not wait for the other. The client closes after the request. There is no database, login, background worker, or persistent cache.
 
-If you intend this project to be publicly reusable, add a license such as MIT, Apache-2.0, or GPL before inviting outside contributions.
+## API
+
+| Route | Behavior |
+| --- | --- |
+| `GET /api/search?q=<query>&limit=10` | Exact CVE lookup or keyword search; keyword limit clamped to 1-25 |
+| `GET /api/cve/<CVE-ID>` | NVD metadata enriched with EPSS and KEV |
+
+CVE identifiers are trimmed and normalized to uppercase. Empty search queries and invalid API CVE IDs return `400`. Missing NVD detail records return `404`; no search matches return `200` with an empty results list. NVD failures return `502`. Errors retain the `{"error": "message"}` shape.
+
+EPSS or KEV failure does not discard a valid NVD record: the response is `200`, with the failing source marked `error` in `sourceStatus`.
+
+**Intentional compatibility change:** `kev.listed` is now nullable. `true` means listed, `false` means a successful catalog lookup found no match, and `null` means the catalog could not be checked. Consumers must not treat `null` as a confirmed negative. Missing optional fields are serialized as JSON `null`.
+
+```sh
+curl "http://127.0.0.1:8000/api/search?q=openssl&limit=5"
+curl "http://127.0.0.1:8000/api/cve/CVE-2024-3400"
+```
+
+The browser search now submits a standard GET form to `/?q=...`. Detail URLs remain `/cve/<CVE-ID>`, and `/demo` links to detail pages with `?demo=1`.
+
+## Assessment rules and limitations
+
+Rules are evaluated in this order:
+
+1. Confirmed KEV listing: **Immediate Action**.
+2. CVSS >= 9 or EPSS >= 0.70: **Accelerated Remediation**.
+3. CVSS >= 7 or EPSS >= 0.30: **Planned Priority**.
+4. Missing CVSS, EPSS score, or KEV status: **Insufficient Data**.
+5. Otherwise: **Monitor and Triage**.
+
+Known high-priority signals still justify action when another source is missing, with an explicit incomplete-intelligence notice. Missing scores are never converted to zero. These thresholds are project heuristics, not a validated risk model or an organizational SLA. Asset exposure, business criticality, and compensating controls still require analyst judgment. A KEV listing does not prove that your own assets are compromised.
+
+The NVD metric preference remains CVSS 3.1, then 3.0, then 2.0. CVSS 4.0 support, pagination beyond the first result page, catalog caching, retries, and asset-aware prioritization are future work. Each live analysis downloads the KEV catalog; public source latency and rate limits affect availability.
+
+## Tests
+
+```sh
+uv run pytest -q
+```
+
+Tests use HTTPX mock transports, so they require no credentials or upstream connectivity. Coverage includes adapter normalization, exact/keyword lookup, limits, timeouts, malformed responses, partial enrichment failures, concurrent requests, assessment boundaries, JSON field names, HTML escaping, demo pages, and API documentation.
+
+After changing dependencies, update `uv.lock` with `uv lock`, then regenerate the pip-compatible runtime file:
+
+```sh
+uv export --locked --no-dev --no-emit-project --no-hashes --format requirements-txt --output-file requirements.txt
+```
+
+## Explaining the project in an interview
+
+"I built a vulnerability triage tool that normalizes three intelligence sources into one view. NVD provides the vulnerability record and technical severity; EPSS and KEV add exploitation context. Source adapters isolate API differences, and a service combines their results. Optional sources can fail independently without hiding the core record. FastAPI exposes documented JSON endpoints and renders HTML for analysts. Prioritization rules are explicit, tested, and distinguish missing intelligence from low scores."
+
+Be prepared to explain:
+
+- **Why FastAPI?** Python routes, response validation, generated API documentation, and async HTTP integration in one application.
+- **Why separate adapters?** Upstream response changes can be addressed without rewriting the UI or assessment rules.
+- **Why concurrency?** EPSS and KEV are independent network requests; overlapping their wait time reduces enrichment latency.
+- **Why Pydantic?** It validates the normalized model and documents the API contract; it does not guarantee the source data is factually correct.
+- **Why tolerate partial failure?** Analysts can still use available intelligence while seeing exactly which source could not be checked.
+- **What would you improve next?** Cache KEV with freshness information, handle upstream rate limits, and add asset context before claiming organization-specific risk.
+
+## Deployment
+
+For a Python host, install `requirements.txt` and start `uvicorn main:app --host 0.0.0.0 --port <host-port>`. Run without `--reload` in production. Include `templates/`, `static/`, and `vm_analysis/data/` in the deployment.
+
+For the existing Vercel project, switch its framework preset from Next.js to FastAPI and clear old npm build/install and `.next` output overrides. The root `main.py` exports `app`, and the project includes Python dependency files. Check the home page, demo, CSS, docs, and a live lookup on a preview deployment before promoting it. See [Vercel's FastAPI documentation](https://vercel.com/docs/frameworks/backend/fastapi).
+
+This migration does not itself update the hosted deployment or its dashboard settings. The prior deployment URL is [vm-analysis-tool.vercel.app](https://vm-analysis-tool.vercel.app/).
+
+The root `index.html` remains a separate legacy static demo. It contains its own demo data and JavaScript, does not run the Python service, and is not served as the FastAPI home page. Use `/demo` to review the migrated application.

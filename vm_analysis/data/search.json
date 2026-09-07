@@ -1,0 +1,25 @@
+{
+  "query": "demo",
+  "mode": "keyword",
+  "totalResults": 2,
+  "results": [
+    {
+      "cveId": "CVE-2024-3400",
+      "title": "Palo Alto PAN-OS command injection",
+      "summary": "A command injection vulnerability in GlobalProtect gateway and portal features can lead to unauthenticated remote code execution.",
+      "published": "2024-04-12T00:00:00.000Z",
+      "lastModified": "2024-05-10T00:00:00.000Z",
+      "cvssBaseScore": 10,
+      "cvssSeverity": "CRITICAL"
+    },
+    {
+      "cveId": "CVE-2023-4863",
+      "title": "libwebp heap buffer overflow",
+      "summary": "A crafted WebP image can trigger a heap buffer overflow in libwebp, impacting many downstream browsers and desktop apps.",
+      "published": "2023-09-12T00:00:00.000Z",
+      "lastModified": "2023-10-02T00:00:00.000Z",
+      "cvssBaseScore": 8.8,
+      "cvssSeverity": "HIGH"
+    }
+  ]
+}

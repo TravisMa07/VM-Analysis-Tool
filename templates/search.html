@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <span class="eyebrow">{{ 'Local Demo' if demo else 'Live Vulnerability Context' }}</span>
+  <h1>{{ 'Test the UI without live API calls.' if demo else 'Query CVEs and prioritize faster.' }}</h1>
+  {% if demo %}
+  <p>Illustrative, frozen demo data for reviewing the layout. Scores and catalog status are not current intelligence.</p>
+  {% else %}
+  <p>This tool aggregates NVD CVE and CVSS data, FIRST EPSS enrichment, and CISA KEV intelligence into a single modular analysis view so triage decisions can happen faster.</p>
+  <section class="search-panel">
+    <form class="search-form" action="/" method="get">
+      <div class="search-form-row">
+        <input class="search-input" type="search" name="q" value="{{ query }}" required
+               placeholder="Try CVE-2024-3400 or search by vendor, product, or keyword" aria-label="Search CVEs">
+        <button class="primary-button" type="submit">Search</button>
+      </div>
+      <p class="helper-text">Search NVD live, then open a one-page CVE analysis with CVSS, EPSS, and KEV context.</p>
+      <p class="status-text" id="search-status" role="status"></p>
+      {% if error %}<p class="error-text" role="alert">{{ error }}</p>{% endif %}
+    </form>
+  </section>
+  {% endif %}
+  {% if results is not none and results is defined %}
+  <div class="results-list">
+    <p class="status-text">{{ results.total_results }} {{ 'demo results' if demo else 'results from ' ~ ('exact CVE lookup' if results.mode == 'cveId' else 'keyword search') }}{% if results.total_results > results.results|length %}; showing {{ results.results|length }}{% endif %}</p>
+    {% for item in results.results %}
+    <a class="result-card result-card-link" href="/cve/{{ item.cve_id|urlencode }}{{ '?demo=1' if demo else '' }}">
+      <span class="eyebrow">{{ item.cve_id }}</span>
+      <h2>{{ item.title }}</h2><p>{{ item.summary }}</p>
+      <div class="result-meta">
+        <span class="pill">CVSS {{ item.cvss_base_score|score }}</span>
+        <span class="pill">{{ item.cvss_severity or 'Severity unavailable' }}</span>
+        <span class="pill">Published {{ item.published|date }}</span>
+      </div>
+      <span class="result-link">Select CVE</span>
+    </a>
+    {% else %}
+    <div class="result-card"><h2>No matching CVEs</h2><p>Try a broader keyword or a different CVE identifier.</p></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <a class="back-link" href="{{ '/' if demo else '/demo' }}">{{ 'Return to live search' if demo else 'Explore demo data' }}</a>
+</section>
+{% endblock %}

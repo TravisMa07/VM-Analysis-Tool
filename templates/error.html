@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}{{ status }} · VM Analysis Tool{% endblock %}
+{% block content %}
+<section class="hero"><span class="eyebrow">{{ status }}</span><h1>Analysis unavailable.</h1><p role="alert">{{ message }}</p><a class="back-link" href="/">Return to search</a></section>
+{% endblock %}

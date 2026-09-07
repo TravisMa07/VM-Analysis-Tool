@@ -5,4 +5,12 @@ dist
 .DS_Store
 .env.local
 .env
+.venv/
+.uv-cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
