@@ -72,6 +72,8 @@ if (form) {
   const status = document.querySelector('#search-status');
   const menu = document.querySelector('#search-suggestions');
   const hint = document.querySelector('#suggestion-status');
+  const demo = form.dataset?.demo === 'true';
+  const demoRecords = demo ? JSON.parse(document.querySelector('#demo-records').textContent) : [];
   let catalog = [], vulnerabilityIndex = [], live = [], options = [], active = -1;
   let timer, controller, generation = 0, composing = false;
   input.setAttribute('role', 'combobox');
@@ -105,7 +107,7 @@ if (form) {
     const option = options[index];
     if (!option) return;
     close();
-    if (option.cveId) window.location.assign(`/cve/${encodeURIComponent(option.cveId)}`);
+    if (option.cveId) window.location.assign(`/cve/${encodeURIComponent(option.cveId)}${demo ? "?demo=1" : ""}`);
     else {
       input.value = option.query;
       form.requestSubmit();
@@ -141,6 +143,10 @@ if (form) {
     active = -1;
     const query = input.value.trim();
     if (composing || query.length < 2) { close(); return; }
+    if (demo) {
+      live = demoRecords.filter(item => `${item.cveId} ${item.title} ${item.summary}`.toLowerCase().includes(query.toLowerCase())).slice(0, 4);
+      render(); return;
+    }
     render();
     if (query.length < 3 || query.length > 200) return;
     const version = generation;
@@ -163,11 +169,11 @@ if (form) {
       }
     }, 500);
   }
-  fetch('/static/suggestion-catalog.json').then(response => response.json()).then(data => {
+  if (!demo) fetch('/static/suggestion-catalog.json').then(response => response.json()).then(data => {
     catalog = data;
     if (!menu.hidden) render();
   }).catch(() => {});
-  fetch('/static/vulnerability-index.json').then(response => response.json()).then(data => {
+  if (!demo) fetch('/static/vulnerability-index.json').then(response => response.json()).then(data => {
     vulnerabilityIndex = data;
     if (!menu.hidden) render();
   }).catch(() => {});
@@ -196,7 +202,7 @@ if (form) {
     close();
     button.disabled = true;
     button.textContent = 'Searching…';
-    status.textContent = 'Requesting vulnerability data from NVD…';
+    status.textContent = demo ? 'Loading demo results…' : 'Requesting vulnerability data from NVD…';
   });
   window.addEventListener('pageshow', () => {
     close();

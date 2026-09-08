@@ -1,0 +1,9 @@
+<form class="search-form" action="{{ '/demo' if demo else '/' }}" method="get" data-demo="{{ 'true' if demo else 'false' }}">
+  <div class="search-form-row"><div class="search-combobox">
+    <input class="search-input" type="search" name="q" value="{{ query|default('') }}" required placeholder="Search CVEs or keywords" aria-label="Search vulnerabilities">
+    <button class="clear-search" type="button" aria-label="Clear search">×</button>
+    <ul id="search-suggestions" class="search-suggestions" role="listbox" aria-label="Search suggestions" hidden></ul>
+  </div><button class="primary-button" type="submit">Search</button></div>
+  <p id="search-status" class="status-text" role="status"></p>
+  <p id="suggestion-status" class="sr-only" role="status"></p>
+</form>

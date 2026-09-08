@@ -66,15 +66,18 @@ async def request_nvd(client: httpx.AsyncClient, params: dict) -> dict:
         raise
 
 
-async def search_nvd(client: httpx.AsyncClient, query: str, limit: int = 10) -> SearchResponse:
+async def search_nvd(client: httpx.AsyncClient, query: str, limit: int = 10, start_index: int = 0) -> SearchResponse:
     query = query.strip()
     mode = "cveId" if is_valid_cve_id(query) else "keyword"
     params = ({"cveId": normalize_cve_id(query)} if mode == "cveId" else
-              {"keywordSearch": query, "resultsPerPage": min(25, max(1, limit))})
+              {"keywordSearch": query, "resultsPerPage": min(25, max(1, limit)), "startIndex": start_index})
     payload = await request_nvd(client, params)
     results = [map_nvd_record_to_search_result(record) for record in payload["vulnerabilities"]]
-    return SearchResponse(query=query, mode=mode, results=results,
-                          total_results=payload.get("totalResults", len(results)))
+    total = payload.get("totalResults", len(results))
+    offset = start_index if mode == "keyword" else 0
+    next_index = offset + len(results)
+    return SearchResponse(query=query, mode=mode, results=results, total_results=total,
+                          start_index=offset, next_start_index=next_index if mode == "keyword" and results and next_index < total else None)
 
 
 async def get_nvd_cve(client: httpx.AsyncClient, cve_id: str) -> NvdDetail | None:

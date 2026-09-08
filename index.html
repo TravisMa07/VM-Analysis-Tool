@@ -1,983 +1,847 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>VM Analysis Tool</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        --bg: #09111d;
-        --bg-accent: #11243b;
-        --surface: rgba(14, 24, 38, 0.9);
-        --surface-strong: #122033;
-        --surface-soft: #17283d;
-        --text: #edf5ff;
-        --muted: #9fb1c7;
-        --line: rgba(159, 177, 199, 0.18);
-        --brand: #5cc8ff;
-        --brand-strong: #2e91ff;
-        --warn: #f4bc42;
-        --danger: #ff7d6b;
-        --shadow: 0 28px 80px rgba(2, 8, 18, 0.42);
-        --radius-lg: 24px;
-        --radius-md: 18px;
-        --radius-sm: 12px;
-        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html,
-      body {
-        margin: 0;
-        min-height: 100%;
-        background:
-          radial-gradient(circle at top right, rgba(92, 200, 255, 0.16), transparent 34%),
-          radial-gradient(circle at 15% 20%, rgba(46, 145, 255, 0.18), transparent 28%),
-          linear-gradient(180deg, #08101b 0%, #0d1726 52%, #101c2d 100%);
-        color: var(--text);
-      }
-
-      body {
-        min-height: 100vh;
-      }
-
-      a {
-        color: inherit;
-      }
-
-      button,
-      input {
-        font: inherit;
-      }
-
-      .page-shell {
-        width: min(1120px, calc(100% - 32px));
-        margin: 0 auto;
-        padding: 32px 0 56px;
-      }
-
-      .hero {
-        padding: 40px;
-        border: 1px solid var(--line);
-        border-radius: var(--radius-lg);
-        background:
-          linear-gradient(145deg, rgba(18, 32, 51, 0.96), rgba(12, 22, 36, 0.94)),
-          var(--surface);
-        box-shadow: var(--shadow);
-      }
-
-      .eyebrow {
-        display: inline-flex;
-        padding: 8px 12px;
-        border-radius: 999px;
-        background: rgba(92, 200, 255, 0.14);
-        color: var(--brand);
-        font-size: 0.8rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-
-      h1 {
-        margin: 16px 0 8px;
-        font-size: clamp(2.2rem, 5vw, 4rem);
-        line-height: 1.02;
-        max-width: 20ch;
-        letter-spacing: -0.03em;
-      }
-
-      p {
-        margin: 0;
-        max-width: 100ch;
-        color: var(--muted);
-        line-height: 1.6;
-      }
-
-      .search-panel,
-      .detail-grid {
-        margin-top: 24px;
-      }
-
-      .search-form {
-        display: grid;
-        gap: 12px;
-        margin-top: 24px;
-      }
-
-      .search-form-row {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 12px;
-      }
-
-      .search-input {
-        width: 100%;
-        border: 1px solid var(--line);
-        border-radius: var(--radius-md);
-        padding: 16px 18px;
-        background: rgba(9, 17, 29, 0.88);
-        color: var(--text);
-      }
-
-      .search-input::placeholder {
-        color: rgba(159, 177, 199, 0.74);
-      }
-
-      .primary-button,
-      .ghost-button {
-        border: 0;
-        border-radius: var(--radius-md);
-        padding: 15px 18px;
-        cursor: pointer;
-        transition:
-          transform 0.14s ease,
-          opacity 0.14s ease;
-      }
-
-      .primary-button {
-        background: linear-gradient(135deg, var(--brand), var(--brand-strong));
-        color: #06111d;
-        font-weight: 700;
-      }
-
-      .ghost-button {
-        background: rgba(23, 40, 61, 0.9);
-        border: 1px solid var(--line);
-        color: var(--text);
-      }
-
-      .primary-button:hover,
-      .ghost-button:hover {
-        transform: translateY(-1px);
-      }
-
-      .helper-text,
-      .status-text {
-        color: var(--muted);
-        font-size: 0.94rem;
-      }
-
-      .results-list,
-      .cards-grid {
-        display: grid;
-        gap: 16px;
-      }
-
-      .results-list {
-        margin-top: 24px;
-      }
-
-      .result-card,
-      .card {
-        border: 1px solid var(--line);
-        border-radius: var(--radius-md);
-        background:
-          linear-gradient(180deg, rgba(23, 40, 61, 0.92), rgba(18, 32, 51, 0.96)),
-          var(--surface-strong);
-        box-shadow: var(--shadow);
-      }
-
-      .result-card,
-      .card {
-        padding: 22px;
-      }
-
-      .result-card h2,
-      .card h2 {
-        margin: 0;
-        font-size: 1.2rem;
-      }
-
-      .result-meta,
-      .inline-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 12px;
-      }
-
-      .pill {
-        display: inline-flex;
-        align-items: center;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: rgba(92, 200, 255, 0.12);
-        color: #d3f0ff;
-        font-size: 0.82rem;
-        font-weight: 700;
-        border: 1px solid rgba(92, 200, 255, 0.14);
-      }
-
-      .pill.warn {
-        background: rgba(244, 188, 66, 0.12);
-        color: var(--warn);
-        border-color: rgba(244, 188, 66, 0.18);
-      }
-
-      .pill.danger {
-        background: rgba(255, 125, 107, 0.12);
-        color: var(--danger);
-        border-color: rgba(255, 125, 107, 0.18);
-      }
-
-      .result-card p,
-      .card p {
-        margin: 12px 0 0;
-      }
-
-      .action-link {
-        display: inline-flex;
-        margin-top: 16px;
-        color: var(--brand);
-        font-weight: 700;
-        text-decoration: underline;
-        text-underline-offset: 2px;
-        cursor: pointer;
-      }
-
-      .result-card-clickable {
-        cursor: pointer;
-        transition:
-          transform 0.14s ease,
-          box-shadow 0.14s ease,
-          border-color 0.14s ease;
-      }
-
-      .result-card-clickable:hover {
-        transform: translateY(-2px);
-        border-color: rgba(92, 200, 255, 0.3);
-        box-shadow: 0 32px 72px rgba(2, 8, 18, 0.5);
-      }
-
-      .detail-header {
-        padding: 28px 0 8px;
-      }
-
-      .detail-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 18px;
-        align-items: stretch;
-      }
-
-      .card.full-width {
-        grid-column: 1 / -1;
-      }
-
-      .card {
-        min-height: 100%;
-      }
-
-      .data-list {
-        display: grid;
-        gap: 14px;
-        margin-top: 18px;
-      }
-
-      .data-row {
-        display: grid;
-        gap: 4px;
-      }
-
-      .data-label {
-        font-size: 0.82rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-
-      .data-value {
-        font-size: 1rem;
-        line-height: 1.5;
-        color: var(--text);
-        overflow-wrap: anywhere;
-        word-break: break-word;
-      }
-
-      .tag-list,
-      .reference-list {
-        display: grid;
-        gap: 10px;
-        margin-top: 16px;
-        padding: 0;
-        list-style: none;
-      }
-
-      .tag {
-        padding: 8px 12px;
-        border-radius: 999px;
-        border: 1px solid var(--line);
-        background: rgba(92, 200, 255, 0.1);
-        font-size: 0.85rem;
-      }
-
-      .reference-list a {
-        color: #d3f0ff;
-        text-decoration: underline;
-        text-underline-offset: 2px;
-        word-break: break-word;
-      }
-
-      .hidden {
-        display: none !important;
-      }
-
-      .notice {
-        margin-top: 16px;
-        padding: 14px 16px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--line);
-        background: rgba(23, 40, 61, 0.88);
-      }
-
-      @media (max-width: 900px) {
-        .detail-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-      }
-
-      @media (max-width: 720px) {
-        .page-shell {
-          width: min(1120px, calc(100% - 20px));
-          padding-top: 20px;
-        }
-
-        .hero,
-        .card,
-        .result-card {
-          padding: 18px;
-        }
-
-        .search-form-row {
-          grid-template-columns: 1fr;
-        }
-
-        .detail-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <main class="page-shell">
-      <section class="hero">
-        <span class="eyebrow">Static Demo UI</span>
-        <h1>Query CVEs and review one-page analysis.</h1>
-        <p>
-          This is a standalone HTML version of the UI for localhost or GitHub Pages.
-          It uses bundled sample data so it works on a static host without a backend.
-        </p>
-
-        <div class="notice">
-          For live NVD, EPSS, and KEV API ingestion, use the Next.js app. Static hosting
-          can render the interface, but the production aggregation flow still needs a server.
-        </div>
-
-        <section class="search-panel">
-          <form class="search-form" id="search-form">
-            <div class="search-form-row">
-              <input
-                class="search-input"
-                id="search-input"
-                type="search"
-                placeholder="Try CVE-2024-3400 or search by vendor, product, or keyword"
-                aria-label="Search CVEs"
-              />
-              <button class="primary-button" type="submit">Search Demo Data</button>
-            </div>
-            <p class="helper-text">
-              Search the built-in dataset, then open the modular CVE analysis below.
-            </p>
-            <div class="inline-meta">
-              <button class="ghost-button" type="button" id="load-all-button">
-                Load all demo results
-              </button>
-            </div>
-          </form>
-
-          <div id="results-section" class="results-list"></div>
-        </section>
-      </section>
-
-      <section id="detail-section" class="hidden">
-        <section class="detail-header">
-          <span class="eyebrow" id="detail-cve-id">CVE-0000-0000</span>
-          <h1>One-page vulnerability analysis.</h1>
-          <p id="detail-status"></p>
-          <a class="action-link" id="back-to-results">Back to results</a>
-        </section>
-
-        <section class="detail-grid">
-          <section class="card full-width">
-            <h2>Assessment</h2>
-            <p>
-              Combined operator view across CVE, EPSS, and KEV to support an
-              initial remediation decision.
-            </p>
-            <div class="inline-meta" id="assessment-pills"></div>
-            <div class="data-list">
-              <div class="data-row">
-                <span class="data-label">Key Source Signals</span>
-                <span class="data-value" id="assessment-signals"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Judgment</span>
-                <span class="data-value" id="assessment-judgment"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Decision Guidance</span>
-                <span class="data-value" id="assessment-decision"></span>
-              </div>
-            </div>
-          </section>
-
-          <section class="card full-width">
-            <h2>CVE Overview</h2>
-            <p>Core NVD metadata for the selected vulnerability.</p>
-            <div class="data-list">
-              <div class="data-row">
-                <span class="data-label">Description</span>
-                <span class="data-value" id="overview-description"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Published</span>
-                <span class="data-value" id="overview-published"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Last Modified</span>
-                <span class="data-value" id="overview-modified"></span>
-              </div>
-            </div>
-            <ul class="tag-list" id="overview-cwes"></ul>
-          </section>
-
-          <section class="card">
-            <h2>CVSS</h2>
-            <p>Base scoring from the preferred NVD metric.</p>
-            <div class="inline-meta" id="cvss-pills"></div>
-            <div class="data-list">
-              <div class="data-row">
-                <span class="data-label">Vector</span>
-                <span class="data-value" id="cvss-vector"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Exploitability Score</span>
-                <span class="data-value" id="cvss-exploitability"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Impact Score</span>
-                <span class="data-value" id="cvss-impact"></span>
-              </div>
-            </div>
-          </section>
-
-          <section class="card">
-            <h2>EPSS</h2>
-            <p>FIRST exploitation probability enrichment.</p>
-            <div class="inline-meta" id="epss-pills"></div>
-            <div class="data-list">
-              <div class="data-row">
-                <span class="data-label">EPSS Score</span>
-                <span class="data-value" id="epss-score"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Percentile</span>
-                <span class="data-value" id="epss-percentile"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Score Date</span>
-                <span class="data-value" id="epss-date"></span>
-              </div>
-            </div>
-          </section>
-
-          <section class="card">
-            <h2>KEV</h2>
-            <p>CISA known exploited vulnerability catalog status.</p>
-            <div class="inline-meta" id="kev-pills"></div>
-            <div class="data-list">
-              <div class="data-row">
-                <span class="data-label">Vendor</span>
-                <span class="data-value" id="kev-vendor"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Product</span>
-                <span class="data-value" id="kev-product"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Vulnerability Name</span>
-                <span class="data-value" id="kev-name"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Date Added</span>
-                <span class="data-value" id="kev-added"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Due Date</span>
-                <span class="data-value" id="kev-due"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Required Action</span>
-                <span class="data-value" id="kev-action"></span>
-              </div>
-              <div class="data-row">
-                <span class="data-label">Notes</span>
-                <span class="data-value" id="kev-notes"></span>
-              </div>
-            </div>
-          </section>
-
-          <section class="card full-width">
-            <h2>References</h2>
-            <p>Canonical source links for the CVE, EPSS, and KEV data shown here.</p>
-            <ul class="reference-list" id="reference-list"></ul>
-          </section>
-        </section>
-      </section>
-    </main>
-
-    <script>
-      const demoData = [
-        {
-          cveId: "CVE-2024-3400",
-          title: "Palo Alto PAN-OS command injection",
-          summary:
-            "A command injection vulnerability in GlobalProtect gateway and portal features can lead to unauthenticated remote code execution.",
-          published: "2024-04-12T00:00:00.000Z",
-          lastModified: "2024-05-10T00:00:00.000Z",
-          description:
-            "A command injection vulnerability in Palo Alto Networks PAN-OS GlobalProtect gateway and portal may allow an unauthenticated attacker to execute arbitrary code with root privileges on the firewall.",
-          cwes: ["CWE-77: Command Injection", "CWE-78: OS Command Injection"],
-          references: [
-            {
-              url: "https://nvd.nist.gov/vuln/detail/CVE-2024-3400",
-              source: "CVE / NVD"
-            },
-            {
-              url: "https://api.first.org/data/v1/epss?cve=CVE-2024-3400",
-              source: "EPSS / FIRST"
-            },
-            {
-              url: "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
-              source: "KEV / CISA"
-            }
-          ],
-          cvss: {
-            version: "3.1",
-            vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
-            baseScore: 10,
-            baseSeverity: "CRITICAL",
-            exploitabilityScore: 3.9,
-            impactScore: 6
-          },
-          epss: {
-            score: 0.945,
-            percentile: 0.998,
-            date: "2026-02-28"
-          },
-          kev: {
-            listed: true,
-            vendorProject: "Palo Alto Networks",
-            product: "PAN-OS",
-            vulnerabilityName: "PAN-OS GlobalProtect Command Injection",
-            dateAdded: "2024-04-12",
-            requiredAction:
-              "Apply the vendor fix or mitigations immediately and verify device integrity.",
-            dueDate: "2024-05-03",
-            notes:
-              "This issue has been observed in active exploitation against internet-facing firewalls."
-          },
-          sourceStatus: {
-            nvd: "ok",
-            epss: "ok",
-            kev: "ok"
-          }
-        },
-        {
-          cveId: "CVE-2023-4863",
-          title: "libwebp heap buffer overflow",
-          summary:
-            "A crafted WebP image can trigger a heap buffer overflow in libwebp, impacting many downstream browsers and desktop apps.",
-          published: "2023-09-12T00:00:00.000Z",
-          lastModified: "2023-10-02T00:00:00.000Z",
-          description:
-            "A heap buffer overflow in libwebp can be triggered by crafted image data, with broad downstream impact due to widespread library reuse.",
-          cwes: ["CWE-122: Heap-based Buffer Overflow"],
-          references: [
-            {
-              url: "https://nvd.nist.gov/vuln/detail/CVE-2023-4863",
-              source: "CVE / NVD"
-            },
-            {
-              url: "https://api.first.org/data/v1/epss?cve=CVE-2023-4863",
-              source: "EPSS / FIRST"
-            },
-            {
-              url: "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
-              source: "KEV / CISA"
-            }
-          ],
-          cvss: {
-            version: "3.1",
-            vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
-            baseScore: 8.8,
-            baseSeverity: "HIGH",
-            exploitabilityScore: 2.8,
-            impactScore: 5.9
-          },
-          epss: {
-            score: 0.732,
-            percentile: 0.982,
-            date: "2026-02-28"
-          },
-          kev: {
-            listed: false,
-            vendorProject: null,
-            product: null,
-            vulnerabilityName: null,
-            dateAdded: null,
-            requiredAction: null,
-            dueDate: null,
-            notes: null
-          },
-          sourceStatus: {
-            nvd: "ok",
-            epss: "ok",
-            kev: "not_listed"
-          }
-        }
-      ];
-
-      function formatDate(value) {
-        if (!value) {
-          return "Not available";
-        }
-
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) {
-          return value;
-        }
-
-        return new Intl.DateTimeFormat("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric"
-        }).format(date);
-      }
-
-      function formatPercent(value) {
-        if (value === null || value === undefined || Number.isNaN(value)) {
-          return "Not available";
-        }
-
-        return (value * 100).toFixed(2) + "%";
-      }
-
-      function searchDemo(query) {
-        const q = query.trim().toLowerCase();
-        if (!q) {
-          return [];
-        }
-
-        return demoData.filter((item) => {
-          return (
-            item.cveId.toLowerCase().includes(q) ||
-            item.title.toLowerCase().includes(q) ||
-            item.summary.toLowerCase().includes(q) ||
-            item.description.toLowerCase().includes(q) ||
-            (item.kev.vendorProject || "").toLowerCase().includes(q) ||
-            (item.kev.product || "").toLowerCase().includes(q)
-          );
-        });
-      }
-
-      function createPill(text, extraClass) {
-        const span = document.createElement("span");
-        span.className = "pill" + (extraClass ? " " + extraClass : "");
-        span.textContent = text;
-        return span;
-      }
-
-      function getAssessment(record) {
-        const cvssScore = record.cvss.baseScore || 0;
-        const epssScore = (record.epss && record.epss.score) || 0;
-
-        if (record.kev.listed) {
-          return {
-            label: "Immediate Action",
-            detail:
-              "This CVE is listed in KEV, which indicates known active exploitation or strong operational urgency. Treat remediation as an active incident-level priority.",
-            decision:
-              "Patch or mitigate immediately, verify exposure in your environment, and validate compensating controls if a full fix cannot be deployed today."
-          };
-        }
-
-        if (cvssScore >= 9 || epssScore >= 0.7) {
-          return {
-            label: "Accelerated Remediation",
-            detail:
-              "The technical severity or exploitation probability is high enough to justify expedited remediation, even without KEV listing.",
-            decision:
-              "Prioritize this in the current remediation cycle, confirm whether the affected product is deployed, and prepare a short response window."
-          };
-        }
-
-        if (cvssScore >= 7 || epssScore >= 0.3) {
-          return {
-            label: "Planned Priority",
-            detail:
-              "The vulnerability has meaningful risk signals but does not currently rise to the highest urgency tier from the available source data.",
-            decision:
-              "Schedule remediation in normal change management, track vendor guidance, and reassess if EPSS or KEV status changes."
-          };
-        }
-
-        return {
-          label: "Monitor and Triage",
-          detail:
-            "Current source signals suggest comparatively lower operational urgency, assuming the vulnerable asset is not business critical or externally exposed.",
-          decision:
-            "Keep this in backlog triage, confirm actual exposure, and revisit when additional exploit or asset context is available."
-        };
-      }
-
-      function renderResults(results) {
-        const container = document.getElementById("results-section");
-        container.innerHTML = "";
-
-        const status = document.createElement("p");
-        status.className = "status-text";
-        status.textContent = results.length + " demo result" + (results.length === 1 ? "" : "s");
-        container.appendChild(status);
-
-        if (!results.length) {
-          const emptyCard = document.createElement("div");
-          emptyCard.className = "result-card";
-          emptyCard.innerHTML =
-            "<h2>No matching CVEs</h2><p>Try a broader keyword or a different search term.</p>";
-          container.appendChild(emptyCard);
-          return;
-        }
-
-        results.forEach((item) => {
-          const card = document.createElement("article");
-          card.className = "result-card result-card-clickable";
-          card.tabIndex = 0;
-          card.setAttribute("role", "button");
-          card.setAttribute("aria-label", "Open analysis for " + item.cveId);
-
-          const metaHtml =
-            '<div class="result-meta">' +
-            '<span class="pill">CVSS ' + (item.cvss.baseScore != null ? item.cvss.baseScore.toFixed(1) : "N/A") + "</span>" +
-            '<span class="pill">' + (item.cvss.baseSeverity || "Severity unavailable") + "</span>" +
-            '<span class="pill">Published ' + formatDate(item.published) + "</span>" +
-            "</div>";
-
-          card.innerHTML =
-            '<span class="eyebrow">' + item.cveId + "</span>" +
-            "<h2>" + item.title + "</h2>" +
-            "<p>" + item.summary + "</p>" +
-            metaHtml;
-
-          const action = document.createElement("span");
-          action.className = "action-link";
-          action.textContent = "Select CVE";
-
-          function openDetail() {
-            renderDetail(item.cveId);
-          }
-
-          card.addEventListener("click", openDetail);
-          card.addEventListener("keydown", function (event) {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              openDetail();
-            }
-          });
-
-          card.appendChild(action);
-          container.appendChild(card);
-        });
-      }
-
-      function setText(id, value) {
-        document.getElementById(id).textContent = value || "Not available";
-      }
-
-      function renderDetail(cveId) {
-        const record = demoData.find((item) => item.cveId === cveId);
-        if (!record) {
-          return;
-        }
-
-        document.getElementById("detail-section").classList.remove("hidden");
-        document.getElementById("detail-cve-id").textContent = record.cveId;
-        document.getElementById("detail-status").textContent =
-          "Demo source status: NVD " +
-          record.sourceStatus.nvd +
-          ", EPSS " +
-          record.sourceStatus.epss +
-          ", KEV " +
-          record.sourceStatus.kev +
-          ".";
-
-        const assessment = getAssessment(record);
-        const assessmentPills = document.getElementById("assessment-pills");
-        assessmentPills.innerHTML = "";
-        assessmentPills.appendChild(createPill(assessment.label));
-        assessmentPills.appendChild(
-          createPill(
-            "CVSS " +
-              (record.cvss.baseScore != null ? record.cvss.baseScore.toFixed(1) : "N/A")
-          )
-        );
-        assessmentPills.appendChild(
-          createPill("EPSS " + formatPercent(record.epss && record.epss.score))
-        );
-        assessmentPills.appendChild(
-          createPill(
-            "KEV " + (record.kev.listed ? "Listed" : "Not Listed"),
-            record.kev.listed ? "warn" : ""
-          )
-        );
-
-        setText(
-          "assessment-signals",
-          "CVSS severity is " +
-            (record.cvss.baseSeverity || "not available") +
-            ", EPSS is " +
-            formatPercent(record.epss && record.epss.score) +
-            ", and KEV is " +
-            (record.kev.listed ? "listed" : "not listed") +
-            "."
-        );
-        setText("assessment-judgment", assessment.detail);
-        setText("assessment-decision", assessment.decision);
-
-        setText("overview-description", record.description);
-        setText("overview-published", formatDate(record.published));
-        setText("overview-modified", formatDate(record.lastModified));
-
-        const cweList = document.getElementById("overview-cwes");
-        cweList.innerHTML = "";
-        if (record.cwes.length) {
-          record.cwes.forEach((cwe) => {
-            const item = document.createElement("li");
-            item.className = "tag";
-            item.textContent = cwe;
-            cweList.appendChild(item);
-          });
-        } else {
-          const item = document.createElement("li");
-          item.className = "tag";
-          item.textContent = "No CWE metadata";
-          cweList.appendChild(item);
-        }
-
-        const cvssPills = document.getElementById("cvss-pills");
-        cvssPills.innerHTML = "";
-        cvssPills.appendChild(
-          createPill(
-            "Base " +
-              (record.cvss.baseScore != null ? record.cvss.baseScore.toFixed(1) : "N/A")
-          )
-        );
-        cvssPills.appendChild(createPill(record.cvss.baseSeverity || "Severity unavailable"));
-        cvssPills.appendChild(createPill("v" + (record.cvss.version || "N/A")));
-
-        setText("cvss-vector", record.cvss.vector);
-        setText(
-          "cvss-exploitability",
-          record.cvss.exploitabilityScore != null
-            ? String(record.cvss.exploitabilityScore)
-            : "Not available"
-        );
-        setText(
-          "cvss-impact",
-          record.cvss.impactScore != null ? String(record.cvss.impactScore) : "Not available"
-        );
-
-        const epssPills = document.getElementById("epss-pills");
-        epssPills.innerHTML = "";
-        epssPills.appendChild(
-          createPill(
-            record.sourceStatus.epss === "ok"
-              ? "Available"
-              : record.sourceStatus.epss === "not_found"
-                ? "No EPSS record"
-                : "EPSS unavailable",
-            record.sourceStatus.epss === "error" ? "danger" : ""
-          )
-        );
-
-        setText("epss-score", formatPercent(record.epss && record.epss.score));
-        setText(
-          "epss-percentile",
-          formatPercent(record.epss && record.epss.percentile)
-        );
-        setText("epss-date", formatDate(record.epss && record.epss.date));
-
-        const kevPills = document.getElementById("kev-pills");
-        kevPills.innerHTML = "";
-        kevPills.appendChild(
-          createPill(
-            record.sourceStatus.kev === "ok"
-              ? "Listed in KEV"
-              : record.sourceStatus.kev === "not_listed"
-                ? "Not listed"
-                : "KEV unavailable",
-            record.sourceStatus.kev === "ok"
-              ? "warn"
-              : record.sourceStatus.kev === "error"
-                ? "danger"
-                : ""
-          )
-        );
-
-        setText("kev-vendor", record.kev.vendorProject);
-        setText("kev-product", record.kev.product);
-        setText("kev-name", record.kev.vulnerabilityName);
-        setText("kev-added", formatDate(record.kev.dateAdded));
-        setText("kev-due", formatDate(record.kev.dueDate));
-        setText("kev-action", record.kev.requiredAction);
-        setText("kev-notes", record.kev.notes);
-
-        const refList = document.getElementById("reference-list");
-        refList.innerHTML = "";
-        record.references.forEach((reference) => {
-          const item = document.createElement("li");
-          const link = document.createElement("a");
-          link.href = reference.url;
-          link.target = "_blank";
-          link.rel = "noreferrer";
-          link.textContent = (reference.source ? reference.source + ": " : "") + reference.url;
-          item.appendChild(link);
-          refList.appendChild(item);
-        });
-
-        document.getElementById("detail-section").scrollIntoView({ behavior: "smooth" });
-      }
-
-      document.getElementById("search-form").addEventListener("submit", function (event) {
-        event.preventDefault();
-        const value = document.getElementById("search-input").value;
-        renderResults(searchDemo(value));
-      });
-
-      document.getElementById("load-all-button").addEventListener("click", function () {
-        renderResults(demoData);
-      });
-
-      document.getElementById("back-to-results").addEventListener("click", function () {
-        document.getElementById("results-section").scrollIntoView({ behavior: "smooth" });
-      });
-
-      renderResults(demoData);
-    </script>
-  </body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VM Analysis Tool</title>
+<meta name="description" content="Search vulnerabilities and prioritize remediation.">
+
+
+<style>:root {
+  color-scheme:light;
+  --text:#202124;
+  --muted:#5f6368;
+  --line:#dadce0;
+  --brand:#185abc;
+  font-family:Arial,"Segoe UI",sans-serif;
+  font-size:16px;
+  background:#fff;
+  color:var(--text)
+}
+* {
+  box-sizing:border-box
+}
+body {
+  margin:0
+}
+a {
+  color:var(--brand);
+  text-decoration:none
+}
+a:hover {
+  text-decoration:underline
+}
+button,input,textarea {
+  font:inherit
+}
+button,a,input,summary {
+  touch-action:manipulation
+}
+button,summary {
+  cursor:pointer
+}
+button:disabled {
+  cursor:wait;
+  opacity:.65
+}
+:focus-visible {
+  outline:3px solid #185abc;
+  outline-offset:3px
+}
+[hidden],.hidden {
+  display:none!important
+}
+.site-header {
+  position:sticky;
+  top:0;
+  z-index:10;
+  display:flex;
+  align-items:center;
+  gap:32px;
+  padding:16px max(24px,calc((100vw - 1120px)/2));
+  background:#fff;
+  border-bottom:1px solid var(--line)
+}
+.brand {
+  font-size:18px;
+  font-weight:600;
+  color:var(--text);
+  white-space:nowrap
+}
+.site-header .search-form {
+  width:min(700px,100%)
+}
+.page-shell {
+  width:min(820px,calc(100% - 40px));
+  margin:0 auto;
+  padding:32px 0 64px
+}
+footer {
+  padding:24px;
+  text-align:center;
+  color:var(--muted);
+  font-size:13px
+}
+.landing {
+  min-height:65vh;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  padding-bottom:10vh
+}
+.landing h1 {
+  font-size:32px;
+  font-weight:500;
+  letter-spacing:-1px;
+  margin:0 0 28px
+}
+.landing .search-form {
+  width:min(640px,100%)
+}
+.search-form-row {
+  display:flex;
+  gap:12px;
+  align-items:center
+}
+.search-combobox {
+  position:relative;
+  flex:1;
+  min-width:0
+}
+.search-input {
+  width:100%;
+  height:48px;
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:0 44px 0 20px;
+  color:var(--text);
+  background:#fff
+}
+.search-input:hover,.search-input:focus {
+  border-color:#aab0b8
+}
+.search-input::-webkit-search-cancel-button {
+  display:none
+}
+.clear-search {
+  position:absolute;
+  right:12px;
+  top:9px;
+  border:0;
+  background:none;
+  color:var(--muted);
+  font-size:24px;
+  width:30px;
+  height:30px
+}
+.primary-button,.ghost-button {
+  display:inline-block;
+  border:1px solid var(--line);
+  border-radius:5px;
+  background:#f8f9fa;
+  padding:11px 18px;
+  color:var(--text);
+  font-size:14px;
+  cursor:pointer
+}
+.primary-button:hover,.ghost-button:hover {
+  background:#eef1f4;
+  text-decoration:none
+}
+.search-suggestions {
+  position:absolute;
+  top:calc(100% + 5px);
+  left:0;
+  right:0;
+  margin:0;
+  padding:6px 0;
+  list-style:none;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:10px;
+  box-shadow:0 4px 12px #20212416;
+  max-height:380px;
+  overflow:auto;
+  z-index:20
+}
+.search-suggestions li {
+  padding:10px 16px;
+  cursor:pointer
+}
+.search-suggestions li:hover,.search-suggestions li[aria-selected=true] {
+  background:#eef3fb
+}
+.search-suggestions strong,.search-suggestions span {
+  display:block;
+  font-size:14px;
+  overflow-wrap:anywhere
+}
+.search-suggestions span {
+  color:var(--muted);
+  font-size:12px;
+  margin-top:3px
+}
+.status-text,.helper-text,.result-meta {
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.5
+}
+.status-text:empty,.copy-status:empty {
+  display:none
+}
+.search-form .status-text {
+  margin:6px 14px 0
+}
+.result-row {
+  padding:22px 0;
+  border-bottom:1px solid #eceff1
+}
+.result-row h2 {
+  font-size:20px;
+  font-weight:400;
+  margin:6px 0 8px;
+  line-height:1.35
+}
+.result-row p {
+  font-size:14px;
+  line-height:1.6;
+  margin:8px 0;
+  color:#45494e
+}
+.result-id {
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:.02em;
+  color:var(--muted)
+}
+.pagination {
+  padding:24px 0;
+  font-size:13px;
+  color:var(--muted)
+}
+.detail-header {
+  padding-bottom:24px
+}
+.detail-header h1 {
+  font-size:27px;
+  line-height:1.3;
+  letter-spacing:-.5px;
+  font-weight:500;
+  margin:10px 0
+}
+.detail-grid {
+  display:block
+}
+.card,.detail-section {
+  border-top:1px solid var(--line);
+  padding:24px 0
+}
+.card h2 {
+  font-size:20px;
+  margin:0 0 12px;
+  font-weight:600
+}
+.card h3 {
+  font-size:14px;
+  margin:22px 0 8px
+}
+.card p {
+  line-height:1.6;
+  font-size:14px
+}
+.decision {
+  font-size:17px!important
+}
+.inline-meta,.result-meta,.tag-list {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px
+}
+.pill,.tag {
+  font-size:12px;
+  display:inline-block;
+  padding:4px 8px;
+  background:#f1f3f4;
+  border-radius:3px;
+  color:#45494e
+}
+.pill.warn {
+  background:#fff4d6;
+  color:#785300
+}
+.pill.danger,.error-text {
+  color:#a52714
+}
+.error-text,.notice {
+  padding:12px;
+  border-left:3px solid #b06000;
+  background:#fff8ed;
+  font-size:14px;
+  line-height:1.5
+}
+.data-row {
+  display:grid;
+  grid-template-columns:160px minmax(0,1fr);
+  gap:20px;
+  padding:9px 0;
+  font-size:14px;
+  line-height:1.6
+}
+.data-label {
+  color:var(--muted)
+}
+.data-value {
+  overflow-wrap:anywhere
+}
+.evidence-list {
+  padding-left:20px;
+  font-size:14px;
+  line-height:1.7
+}
+.tag-list {
+  padding:0;
+  list-style:none
+}
+summary {
+  font-size:15px;
+  font-weight:600;
+  padding:4px 0;
+  line-height:1.5
+}
+details[open]>summary {
+  margin-bottom:16px
+}
+.vendor-reference-details {
+  margin-top:22px
+}
+.vendor-reference-items {
+  padding-left:20px;
+  font-size:14px;
+  line-height:1.7
+}
+.vendor-reference-items li {
+  margin:12px 0;
+  overflow-wrap:anywhere
+}
+.inline-source {
+  overflow-wrap:anywhere
+}
+.context-form {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+  margin-top:16px
+}
+.context-form label {
+  font-size:13px;
+  color:var(--muted)
+}
+.context-form input {
+  display:block;
+  width:100%;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:4px;
+  margin-top:6px
+}
+.context-form button {
+  align-self:end;
+  justify-self:start
+}
+.evidence-summary {
+  width:100%;
+  min-height:260px;
+  margin-top:14px;
+  padding:14px;
+  background:#f8f9fa;
+  border:1px solid var(--line);
+  border-radius:4px;
+  font-size:13px;
+  line-height:1.6;
+  resize:vertical
+}
+.copy-status {
+  font-size:13px
+}
+.sr-only {
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0
+}
+.skip-link {
+  position:fixed;
+  top:-100px;
+  left:10px;
+  z-index:30;
+  padding:12px;
+  background:#fff
+}
+.skip-link:focus {
+  top:10px
+}
+.back-link {
+  display:inline-block;
+  margin-bottom:16px
+}
+@media(max-width:650px) {
+  .site-header {
+    gap:12px;
+    flex-wrap:wrap;
+    padding:12px 20px
+  }
+  .brand {
+    font-size:15px
+  }
+  .site-header .search-form {
+    width:100%
+  }
+  .page-shell {
+    padding-top:24px
+  }
+  .search-form-row {
+    gap:8px
+  }
+  .primary-button {
+    padding:12px
+  }
+  .search-input {
+    font-size:14px;
+    padding-left:14px
+  }
+  .detail-header h1 {
+    font-size:23px
+  }
+  .data-row {
+    grid-template-columns:1fr;
+    gap:2px
+  }
+  .context-form {
+    grid-template-columns:1fr
+  }
+  .landing h1 {
+    font-size:28px
+  }
+  .card,.detail-section {
+    padding:20px 0
+  }
+  .result-row h2 {
+    font-size:18px
+  }
+}
+@media print {
+  .site-header,footer,.copy-summary,.context-form,.skip-link {
+    display:none
+  }
+  .page-shell {
+    width:100%;
+    padding:0
+  }
+  details {
+    break-inside:avoid
+  }
+}
+.clear-search,.copy-summary {
+  display:none
+}
+.js .clear-search,.js .copy-summary {
+  display:inline-block
+}
+.search-input:placeholder-shown + .clear-search {
+  visibility:hidden
+}
+html:not(.js) .search-input::-webkit-search-cancel-button {
+  display:block
+}
+
+.detail-section p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Analysis-only panel layout. Search and results retain their reading width. */
+.page-shell.analysis-page {
+  width: min(1180px, calc(100% - 40px));
+}
+.analysis-grid, .analysis-pair, .analysis-metrics {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+.analysis-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+.analysis-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+}
+.analysis-panel {
+  scroll-margin-top: 120px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.analysis-panel h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.analysis-panel h3 {
+  margin: 20px 0 10px;
+  font-size: 14px;
+}
+.analysis-panel p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.analysis-panel .assessment-label {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+}
+.analysis-panel .metric-value {
+  margin: 12px 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.analysis-panel .metric-status {
+  font-size: 18px;
+  margin: 8px 0;
+}
+.analysis-panel .data-row {
+  grid-template-columns: minmax(100px, 30%) minmax(0, 1fr);
+  gap: 14px;
+}
+.metric-panel .data-row {
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+.analysis-panel > :last-child {
+  margin-bottom: 0;
+}
+.analysis-panel.optional-tool > summary {
+  font-size: 16px;
+}
+html:not(.js) .page-shell:has(.offline-detail) {
+  width: min(1180px, calc(100% - 40px));
+}
+@media (max-width: 999px) {
+  .analysis-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 699px) {
+  .analysis-pair, .analysis-metrics {
+    grid-template-columns: 1fr;
+  }
+  .analysis-panel .data-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+.priority-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 28px;
+}
+.priority-body h3 {
+  margin-top: 0;
+}
+.priority-body .data-row {
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+@media (max-width: 699px) {
+  .priority-body {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+</style></head>
+<body><script id="demo-records" type="application/json">[{"cveId": "CVE-2024-3400", "cvssBaseScore": 10.0, "cvssSeverity": "CRITICAL", "lastModified": "2024-05-10T00:00:00.000Z", "published": "2024-04-12T00:00:00.000Z", "summary": "A command injection vulnerability in GlobalProtect gateway and portal features can lead to unauthenticated remote code execution.", "title": "Palo Alto PAN-OS command injection"}, {"cveId": "CVE-2023-4863", "cvssBaseScore": 8.8, "cvssSeverity": "HIGH", "lastModified": "2023-10-02T00:00:00.000Z", "published": "2023-09-12T00:00:00.000Z", "summary": "A crafted WebP image can trigger a heap buffer overflow in libwebp, impacting many downstream browsers and desktop apps.", "title": "libwebp heap buffer overflow"}]</script><a class="skip-link" href="#content">Skip to content</a>
+
+<header class="site-header"><a class="brand" href="#">VM Analysis</a><form class="search-form" action="#" method="get" data-demo="true">
+  <div class="search-form-row"><div class="search-combobox">
+    <input class="search-input" type="search" name="q" value="" required placeholder="Search CVEs or keywords" aria-label="Search vulnerabilities">
+    <button class="clear-search" type="button" aria-label="Clear search">×</button>
+    <ul id="search-suggestions" class="search-suggestions" role="listbox" aria-label="Search suggestions" hidden></ul>
+  </div><button class="primary-button" type="submit">Search</button></div>
+  <p id="search-status" class="status-text" role="status"></p>
+  <p id="suggestion-status" class="sr-only" role="status"></p>
+</form></header>
+<main id="content" class="page-shell"><noscript>JavaScript enables fixture search. All demo results and analyses are available below.</noscript>
+
+
+
+<section class="results" data-query="" data-start="0" data-next="" data-total="2">
+<h1 class="sr-only">Search results</h1>
+<p id="result-count" class="status-text" role="status">Showing 2 of 2 demo results</p>
+<div id="result-items">
+<article class="result-row" data-cve="CVE-2024-3400"><a href="#CVE-2024-3400"><span class="result-id">CVE-2024-3400</span><h2>Palo Alto PAN-OS command injection</h2></a><p>A command injection vulnerability in GlobalProtect gateway and portal features can lead to unauthenticated remote code execution.</p><div class="result-meta">CVSS 10.0 · CRITICAL · Published Apr 12, 2024</div></article>
+
+<article class="result-row" data-cve="CVE-2023-4863"><a href="#CVE-2023-4863"><span class="result-id">CVE-2023-4863</span><h2>libwebp heap buffer overflow</h2></a><p>A crafted WebP image can trigger a heap buffer overflow in libwebp, impacting many downstream browsers and desktop apps.</p><div class="result-meta">CVSS 8.8 · HIGH · Published Sep 12, 2023</div></article>
+</div>
+<div class="pagination"><p id="pagination-status" role="status">All results shown.</p></div>
+</section>
+<section class="offline-detail" id="CVE-2024-3400">
+<header class="detail-header"><span class="result-id">CVE-2024-3400</span><h1>PAN-OS GlobalProtect Command Injection</h1>
+<p class="notice">Illustrative, frozen demo data. Scores and catalog status are not current intelligence.</p></header>
+<div class="analysis-grid">
+  <section class="analysis-panel">
+    <h2>Priority assessment</h2><div class="priority-body"><div><p class="assessment-label">Immediate Action</p><p class="decision">Apply vendor fixes or mitigations, consider asset criticality, and verify whether compromise occurred.</p>
+    <div class="inline-meta">
+
+      <span class="pill">CVSS 10.0</span>
+      <span class="pill">EPSS 94.50%</span>
+      <span class="pill warn">Listed in KEV</span>
+    </div>
+
+    <p>CISA lists this vulnerability as known exploited. Confirm exposure and prioritize remediation.</p></div><div><h3>Global priority evidence</h3>
+    <ul class="evidence-list"><li>Known exploited: CISA KEV</li><li>Critical severity: CVSS</li><li>High exploitation probability: EPSS</li><li>Vendor fix identified</li><li>Affected product not confirmed</li></ul>
+    <div class="data-list"><div class="data-row"><span class="data-label">Applicability</span><span class="data-value">Potentially applicable vendor guidance; installed product and version still need confirmation.</span></div></div>
+
+    </div></div>
+  </section>
+<div class="analysis-pair">
+  <section class="analysis-panel">
+    <h2>Vulnerability overview</h2><p>Core NVD metadata for the selected vulnerability.</p>
+    <div class="data-list"><div class="data-row"><span class="data-label">Description</span><span class="data-value">A command injection vulnerability in Palo Alto Networks PAN-OS GlobalProtect gateway and portal may allow an unauthenticated attacker to execute arbitrary code with root privileges on the firewall.</span></div></div><h3>Dates and weaknesses</h3><div class="data-list"><div class="data-row"><span class="data-label">Published</span><span class="data-value">Apr 12, 2024</span></div><div class="data-row"><span class="data-label">Last Modified</span><span class="data-value">May 10, 2024</span></div></div>
+    <ul class="tag-list"><li class="tag">CWE-77: Command Injection</li><li class="tag">CWE-78: OS Command Injection</li></ul>
+
+  </section>
+  <section class="analysis-panel">
+    <h2>Vendor remediation</h2>
+    <p>The strongest available remediation source is shown below. Confirm the installed OS, product, and version before treating it as applicable.</p>
+
+
+    <div class="remediation-truth">
+      <div class="inline-meta"><span class="pill">Paloaltonetworks</span><span class="pill">Vendor-supported platform</span><span class="pill">Source identified</span></div>
+      <h3>How to remediate</h3>
+      <p>Open the official vendor source, confirm the affected release, and apply the fixed package, update, or release identified there.</p>
+      <div class="data-list">
+        <div class="data-row"><span class="data-label">Product / component</span><span class="data-value">Affected product from the vendor advisory</span></div>
+        <div class="data-row"><span class="data-label">Affected versions</span><span class="data-value">Not available</span></div>
+        <div class="data-row"><span class="data-label">Update target</span><span class="data-value">Not available</span></div>
+
+      </div>
+      <h3>Authoritative source</h3>
+      <p><a class="inline-source" href="https://security.paloaltonetworks.com/CVE-2024-3400" target="_blank" rel="noopener noreferrer">https://security.paloaltonetworks.com/CVE-2024-3400</a></p>
+      <p class="helper-text">Asset context helps filter guidance; confirm applicability against the vendor advisory.</p>
+    </div>
+
+
+  </section>
+</div>
+<div class="analysis-metrics">
+  <section class="analysis-panel metric-panel"><h2>CVSS · Technical severity</h2>
+    <p>Base scoring from the preferred metric available in NVD.</p>
+    <p class="metric-value">10.0</p><div class="inline-meta"><span class="pill">CRITICAL</span><span class="pill">v3.1</span></div>
+    <div class="data-list"><div class="data-row"><span class="data-label">Vector</span><span class="data-value">CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H</span></div><div class="data-row"><span class="data-label">Exploitability Score</span><span class="data-value">3.9</span></div><div class="data-row"><span class="data-label">Impact Score</span><span class="data-value">6.0</span></div></div>
+  </section>
+  <section class="analysis-panel metric-panel"><h2>EPSS · Exploitation probability</h2>
+    <p>FIRST exploitation probability enrichment.</p><p class="metric-value">94.50%</p>
+    <div class="inline-meta"><span class="pill ">Available</span></div>
+    <div class="data-list"><div class="data-row"><span class="data-label">EPSS Score</span><span class="data-value">94.50%</span></div><div class="data-row"><span class="data-label">Percentile</span><span class="data-value">99.80%</span></div><div class="data-row"><span class="data-label">Score Date</span><span class="data-value">Feb 28, 2026</span></div></div>
+  </section>
+  <section class="analysis-panel metric-panel"><h2>KEV · Known exploitation</h2>
+    <p>CISA known exploited vulnerability catalog status.</p>
+    <div class="inline-meta"><span class="metric-status pill warn">Listed in KEV</span></div>
+    <div class="data-list">
+      <div class="data-row"><span class="data-label">Vendor</span><span class="data-value">Palo Alto Networks</span></div><div class="data-row"><span class="data-label">Product</span><span class="data-value">PAN-OS</span></div><div class="data-row"><span class="data-label">Vulnerability Name</span><span class="data-value">PAN-OS GlobalProtect Command Injection</span></div>
+      <div class="data-row"><span class="data-label">Date Added</span><span class="data-value">Apr 12, 2024</span></div><div class="data-row"><span class="data-label">Due Date</span><span class="data-value">May 3, 2024</span></div><div class="data-row"><span class="data-label">Required Action</span><span class="data-value">Apply the vendor fix or mitigations immediately and verify device integrity.</span></div><div class="data-row"><span class="data-label">Notes</span><span class="data-value">This issue has been observed in active exploitation against internet-facing firewalls.</span></div>
+    </div>
+  </section>
+</div>
+<section class="analysis-panel sources-panel"><h2>Sources and freshness</h2><div class="data-list">
+<div class="data-row"><span class="data-label">NVD</span><span class="data-value">ok</span></div><div class="data-row"><span class="data-label">EPSS</span><span class="data-value">ok</span></div><div class="data-row"><span class="data-label">KEV</span><span class="data-value">ok</span></div>
+<div class="data-row"><span class="data-label">NVD last modified</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">EPSS date</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">KEV date added</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">Vendor verified</span><span class="data-value">Not available</span></div></div>
+
+
+      <h3>Supporting sources (3)</h3>
+      <ul class="general-reference-items vendor-reference-items">
+        <li><span>CVE / NVD</span> <a href="https://nvd.nist.gov/vuln/detail/CVE-2024-3400" target="_blank" rel="noopener noreferrer">Open source</a></li>
+        <li><span>EPSS / FIRST</span> <a href="https://api.first.org/data/v1/epss?cve=CVE-2024-3400" target="_blank" rel="noopener noreferrer">Open source</a></li>
+        <li><span>KEV / CISA</span> <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener noreferrer">Open source</a></li>
+
+      </ul>
+      <details class="vendor-remediation-sources">
+        <summary>Vendor remediation supporting sources (1)</summary>
+        <ul class="vendor-reference-items">
+          <li><span>Paloaltonetworks — Patch</span>
+          <span class="pill">Source identified</span>
+          <span class="pill">Primary source</span>
+          <a href="https://security.paloaltonetworks.com/CVE-2024-3400" target="_blank" rel="noopener noreferrer">Open source</a></li>
+
+        </ul>
+      </details>
+    </section>
+  <details class="analysis-panel optional-tool" ><summary>Check your asset</summary>
+
+    <p>Filter vendor guidance using analyst-provided context. This does not prove the asset is vulnerable and is not persisted.</p>
+    <p>Asset filtering requires the live application. Confirm installed product and version against the vendor advisory.</p>
+  </details>
+  <details class="analysis-panel optional-tool" ><summary>Handoff summary</summary>
+
+    <p>Copy this summary into change management or an analyst handoff. It does not claim confirmed asset exposure.</p>
+    <button type="button" class="ghost-button copy-summary">Copy summary</button><p class="copy-status" role="status"></p><textarea class="evidence-summary" aria-label="Evidence-ready summary text" readonly>CVE-2024-3400 — Immediate Action
+Global priority evidence: Known exploited: CISA KEV; Critical severity: CVSS; High exploitation probability: EPSS; Vendor fix identified; Affected product not confirmed
+Applicability: Potentially applicable vendor guidance; confirm installed product/version.
+Primary vendor guidance: Paloaltonetworks / Affected product from the vendor advisory — fixed update: See advisory — https://security.paloaltonetworks.com/CVE-2024-3400
+Supporting sources: 4
+Recommended action: Apply vendor fixes or mitigations, consider asset criticality, and verify whether compromise occurred.
+Source freshness: NVD unavailable, EPSS unavailable, KEV unavailable, vendor unavailable.</textarea>
+  </details>
+</div></section>
+<section class="offline-detail" id="CVE-2023-4863">
+<header class="detail-header"><span class="result-id">CVE-2023-4863</span><h1>A heap buffer overflow in libwebp can be triggered by crafted image data, with broad downstream impact due...</h1>
+<p class="notice">Illustrative, frozen demo data. Scores and catalog status are not current intelligence.</p></header>
+<div class="analysis-grid">
+  <section class="analysis-panel">
+    <h2>Priority assessment</h2><div class="priority-body"><div><p class="assessment-label">Accelerated Remediation</p><p class="decision">Confirm the affected product is deployed and prioritize a short remediation window.</p>
+    <div class="inline-meta">
+
+      <span class="pill">CVSS 8.8</span>
+      <span class="pill">EPSS 73.20%</span>
+      <span class="pill ">Not listed</span>
+    </div>
+
+    <p>Available severity or exploitation probability signals justify expedited remediation.</p></div><div><h3>Global priority evidence</h3>
+    <ul class="evidence-list"><li>High exploitation probability: EPSS</li><li>Vendor guidance unavailable for this CVE</li></ul>
+    <div class="data-list"><div class="data-row"><span class="data-label">Applicability</span><span class="data-value">No vendor remediation reference was identified in the NVD record.</span></div></div>
+
+    </div></div>
+  </section>
+<div class="analysis-pair">
+  <section class="analysis-panel">
+    <h2>Vulnerability overview</h2><p>Core NVD metadata for the selected vulnerability.</p>
+    <div class="data-list"><div class="data-row"><span class="data-label">Description</span><span class="data-value">A heap buffer overflow in libwebp can be triggered by crafted image data, with broad downstream impact due to widespread library reuse.</span></div></div><h3>Dates and weaknesses</h3><div class="data-list"><div class="data-row"><span class="data-label">Published</span><span class="data-value">Sep 12, 2023</span></div><div class="data-row"><span class="data-label">Last Modified</span><span class="data-value">Oct 2, 2023</span></div></div>
+    <ul class="tag-list"><li class="tag">CWE-122: Heap-based Buffer Overflow</li></ul>
+
+  </section>
+  <section class="analysis-panel">
+    <h2>Vendor remediation</h2>
+    <p>The strongest available remediation source is shown below. Confirm the installed OS, product, and version before treating it as applicable.</p>
+
+    <p>No primary vendor remediation source was identified. Review the supporting references and verify the affected product with the vendor.</p>
+
+  </section>
+</div>
+<div class="analysis-metrics">
+  <section class="analysis-panel metric-panel"><h2>CVSS · Technical severity</h2>
+    <p>Base scoring from the preferred metric available in NVD.</p>
+    <p class="metric-value">8.8</p><div class="inline-meta"><span class="pill">HIGH</span><span class="pill">v3.1</span></div>
+    <div class="data-list"><div class="data-row"><span class="data-label">Vector</span><span class="data-value">CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H</span></div><div class="data-row"><span class="data-label">Exploitability Score</span><span class="data-value">2.8</span></div><div class="data-row"><span class="data-label">Impact Score</span><span class="data-value">5.9</span></div></div>
+  </section>
+  <section class="analysis-panel metric-panel"><h2>EPSS · Exploitation probability</h2>
+    <p>FIRST exploitation probability enrichment.</p><p class="metric-value">73.20%</p>
+    <div class="inline-meta"><span class="pill ">Available</span></div>
+    <div class="data-list"><div class="data-row"><span class="data-label">EPSS Score</span><span class="data-value">73.20%</span></div><div class="data-row"><span class="data-label">Percentile</span><span class="data-value">98.20%</span></div><div class="data-row"><span class="data-label">Score Date</span><span class="data-value">Feb 28, 2026</span></div></div>
+  </section>
+  <section class="analysis-panel metric-panel"><h2>KEV · Known exploitation</h2>
+    <p>CISA known exploited vulnerability catalog status.</p>
+    <div class="inline-meta"><span class="metric-status pill ">Not listed</span></div>
+    <div class="data-list">
+      <div class="data-row"><span class="data-label">Vendor</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">Product</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">Vulnerability Name</span><span class="data-value">Not available</span></div>
+      <div class="data-row"><span class="data-label">Date Added</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">Due Date</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">Required Action</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">Notes</span><span class="data-value">Not available</span></div>
+    </div>
+  </section>
+</div>
+<section class="analysis-panel sources-panel"><h2>Sources and freshness</h2><div class="data-list">
+<div class="data-row"><span class="data-label">NVD</span><span class="data-value">ok</span></div><div class="data-row"><span class="data-label">EPSS</span><span class="data-value">ok</span></div><div class="data-row"><span class="data-label">KEV</span><span class="data-value">not_listed</span></div>
+<div class="data-row"><span class="data-label">NVD last modified</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">EPSS date</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">KEV date added</span><span class="data-value">Not available</span></div><div class="data-row"><span class="data-label">Vendor verified</span><span class="data-value">Not available</span></div></div>
+
+
+      <h3>Supporting sources (3)</h3>
+      <ul class="general-reference-items vendor-reference-items">
+        <li><span>CVE / NVD</span> <a href="https://nvd.nist.gov/vuln/detail/CVE-2023-4863" target="_blank" rel="noopener noreferrer">Open source</a></li>
+        <li><span>EPSS / FIRST</span> <a href="https://api.first.org/data/v1/epss?cve=CVE-2023-4863" target="_blank" rel="noopener noreferrer">Open source</a></li>
+        <li><span>KEV / CISA</span> <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener noreferrer">Open source</a></li>
+
+      </ul>
+      <details class="vendor-remediation-sources">
+        <summary>Vendor remediation supporting sources (0)</summary>
+        <ul class="vendor-reference-items">
+          <li>No vendor remediation supporting sources were identified.</li>
+        </ul>
+      </details>
+    </section>
+  <details class="analysis-panel optional-tool" ><summary>Check your asset</summary>
+
+    <p>Filter vendor guidance using analyst-provided context. This does not prove the asset is vulnerable and is not persisted.</p>
+    <p>Asset filtering requires the live application. Confirm installed product and version against the vendor advisory.</p>
+  </details>
+  <details class="analysis-panel optional-tool" ><summary>Handoff summary</summary>
+
+    <p>Copy this summary into change management or an analyst handoff. It does not claim confirmed asset exposure.</p>
+    <button type="button" class="ghost-button copy-summary">Copy summary</button><p class="copy-status" role="status"></p><textarea class="evidence-summary" aria-label="Evidence-ready summary text" readonly>CVE-2023-4863 — Accelerated Remediation
+Global priority evidence: High exploitation probability: EPSS; Vendor guidance unavailable for this CVE
+Applicability: No vendor remediation reference identified in NVD.
+Primary vendor guidance: None
+Supporting sources: 3
+Recommended action: Confirm the affected product is deployed and prioritize a short remediation window.
+Source freshness: NVD unavailable, EPSS unavailable, KEV unavailable, vendor unavailable.</textarea>
+  </details>
+</div></section></main>
+<footer>Frozen illustrative data · not current intelligence · Standalone demo</footer>
+<script>(() => {
+  document.documentElement.classList.add('js');
+  const form = document.querySelector('.search-form'), input = form.querySelector('input');
+  const menu = document.querySelector('#search-suggestions');
+  const rows = [...document.querySelectorAll('.result-row')], details = [...document.querySelectorAll('.offline-detail')];
+  const results = document.querySelector('.results'), records = JSON.parse(document.querySelector('#demo-records').textContent);
+  let active = -1, options = [];
+  input.setAttribute('role', 'combobox'); input.setAttribute('aria-controls', menu.id); input.setAttribute('aria-autocomplete', 'list'); input.setAttribute('autocomplete', 'off');
+  function close() { menu.hidden = true; active = -1; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }
+  function render() {
+    const params = new URLSearchParams(location.hash.slice(1));
+    const identifier = location.hash.slice(1), detail = details.find(section => section.id === identifier);
+    details.forEach(section => section.hidden = section !== detail); results.hidden = !!detail;
+    document.querySelector('main').classList.toggle('analysis-page', !!detail);
+    if (!detail) {
+      const query = params.get('q') || ''; input.value = query;
+      rows.forEach(row => row.hidden = !row.textContent.toLowerCase().includes(query.toLowerCase()));
+      const count = rows.filter(row => !row.hidden).length;
+      document.querySelector('#result-count').textContent = `Showing ${count} of ${count} demo results`;
+      document.querySelector('#pagination-status').textContent = count ? 'All results shown.' : 'No matching CVEs. Try a broader keyword.';
+    }
+    close();
+  }
+  function search() { location.hash = `q=${encodeURIComponent(input.value.trim())}`; close(); }
+  function choose(i) { const option = options[i]; if (!option) return; if (option.cveId) location.hash = option.cveId; else search(); close(); }
+  input.addEventListener('input', () => {
+    const query = input.value.trim().toLowerCase(); close(); if (query.length < 2) return;
+    options = [...records.filter(item => `${item.cveId} ${item.title} ${item.summary}`.toLowerCase().includes(query)), {title:`Search for “${input.value}”`}];
+    menu.replaceChildren();
+    options.forEach((item,i) => { const row = document.createElement('li'); row.id = `offline-option-${i}`; row.setAttribute('role','option'); row.textContent = item.cveId ? `${item.cveId} · ${item.title}` : item.title; row.addEventListener('pointerdown',e => e.preventDefault()); row.addEventListener('click',()=>choose(i)); menu.append(row); });
+    menu.hidden = false; input.setAttribute('aria-expanded','true');
+  });
+  input.addEventListener('keydown', event => {
+    if (event.isComposing) return;
+    if (event.key === 'Escape' || event.key === 'Tab') close();
+    if (!menu.hidden && ['ArrowDown','ArrowUp'].includes(event.key)) {
+      event.preventDefault(); active = (active + (event.key === 'ArrowDown' ? 1 : options.length - 1) + options.length) % options.length;
+      [...menu.children].forEach((row,i)=>row.setAttribute('aria-selected',String(i===active)));
+      input.setAttribute('aria-activedescendant',menu.children[active].id);
+    }
+    if (event.key === 'Enter' && active >= 0) { event.preventDefault(); choose(active); }
+  });
+  document.addEventListener('pointerdown', event => { if (!form.contains(event.target)) close(); });
+  form.addEventListener('focusout', event => { if (!form.contains(event.relatedTarget)) close(); });
+  form.addEventListener('submit', event => { event.preventDefault(); search(); });
+  form.querySelector('.clear-search').addEventListener('click', () => { input.value = ''; close(); input.focus(); });
+  document.querySelectorAll('.copy-summary').forEach(button => button.addEventListener('click',async()=>{
+    const section=button.closest('details'), text=section.querySelector('textarea'), status=section.querySelector('.copy-status');
+    try { await navigator.clipboard.writeText(text.value); status.textContent='Summary copied.'; }
+    catch { text.focus(); text.select(); status.textContent='Select and copy the summary below.'; }
+  }));
+  window.addEventListener('hashchange', () => { if (location.hash === '#content') return; render(); window.scrollTo(0,0); }); render();
+})();
+</script></body></html>

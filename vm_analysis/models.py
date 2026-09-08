@@ -150,6 +150,8 @@ class SearchResponse(ApiModel):
     mode: Literal["cveId", "keyword"]
     results: list[SearchResultItem]
     total_results: int
+    start_index: int = 0
+    next_start_index: int | None = None
 
 
 class ErrorResponse(ApiModel):

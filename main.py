@@ -25,6 +25,7 @@ app = FastAPI(title="VM Analysis Tool", version="0.2.0",
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.filters.update(date=format_date, percent=format_percent, score=format_score)
+templates.env.globals["demo_records"] = [item.model_dump(by_alias=True) for item in DEMO_SEARCH.results]
 logger = logging.getLogger(__name__)
 
 
@@ -48,16 +49,22 @@ async def http_error(request: Request, exc: StarletteHTTPException):
                                       status_code=exc.status_code, headers=exc.headers)
 
 
-async def run_search(client: httpx.AsyncClient, q: str, limit: str) -> SearchResponse:
+async def run_search(client: httpx.AsyncClient, q: str, limit: str, start_index: str = "0") -> SearchResponse:
     query = q.strip()
     if not query:
         raise HTTPException(400, "The q query parameter is required.")
+    try:
+        offset = int(start_index)
+        if offset < 0:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(400, "startIndex must be a non-negative integer.")
     try:
         parsed_limit = int(limit)
     except ValueError:
         parsed_limit = 10
     try:
-        return await search_nvd(client, query, parsed_limit)
+        return await search_nvd(client, query, parsed_limit, offset)
     except Exception as exc:
         logger.warning("NVD search failed (%s)", type(exc).__name__)
         raise HTTPException(502, "Unable to search NVD at this time. Please try again.") from exc
@@ -78,9 +85,9 @@ async def load_analysis(client: httpx.AsyncClient, cve_id: str,
 
 
 @app.get("/api/search", response_model=SearchResponse, responses=API_ERRORS)
-async def api_search(client: Client, q: str = "", limit: str = "10"):
-    """Search by exact CVE ID or keyword; return at most 25 keyword matches."""
-    return await run_search(client, q, limit)
+async def api_search(client: Client, q: str = "", limit: str = "10", startIndex: str = "0"):
+    """Search by exact CVE ID or keyword; paginate keyword matches in batches up to 25."""
+    return await run_search(client, q, limit, startIndex)
 
 
 @app.get("/api/cve/{cve_id}", response_model=CveDetailResponse, responses=API_ERRORS)
@@ -104,11 +111,11 @@ async def api_suggestions(client: Client, q: str = ""):
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def home(request: Request, client: Client, q: str | None = None):
+async def home(request: Request, client: Client, q: str | None = None, startIndex: str = "0"):
     results, error, status = None, None, 200
     if q is not None:
         try:
-            results = await run_search(client, q, "10")
+            results = await run_search(client, q, "10", startIndex)
         except HTTPException as exc:
             error, status = exc.detail, exc.status_code
     return templates.TemplateResponse(request=request, name="search.html",
@@ -117,9 +124,12 @@ async def home(request: Request, client: Client, q: str | None = None):
 
 
 @app.get("/demo", response_class=HTMLResponse, include_in_schema=False)
-async def demo(request: Request):
+async def demo(request: Request, q: str = ""):
+    matches = [item for item in DEMO_SEARCH.results if q.strip().lower() in
+               f"{item.cve_id} {item.title} {item.summary}".lower()]
+    results = DEMO_SEARCH.model_copy(update={"query": q, "results": matches, "total_results": len(matches)})
     return templates.TemplateResponse(request=request, name="search.html",
-                                      context={"results": DEMO_SEARCH, "demo": True})
+                                      context={"results": results, "query": q, "demo": True})
 
 
 @app.get("/cve/{cve_id}", response_class=HTMLResponse, include_in_schema=False)
@@ -132,9 +142,11 @@ async def detail(request: Request, cve_id: str, client: Client, demo: str = "",
         cve = DEMO_ANALYSES.get(normalize_cve_id(cve_id))
         if cve is None:
             raise HTTPException(404, "This CVE is not in the demo dataset.")
+        context = AssetContext(os=os, product=product, version=version) if any((os, product, version)) else None
         guidance = automated_vendor_guidance(cve.cve_id, cve.references)
         primary = select_primary_guidance(guidance)
         cve = cve.model_copy(update={
+            "asset_context": context,
             "vendor_guidance": guidance,
             "vendor_guidance_status": "matched" if guidance else "not_available",
             "primary_vendor_guidance": primary,

@@ -2,7 +2,7 @@
 
 A Python/FastAPI application for searching vulnerabilities and reviewing NVD CVE/CVSS data, FIRST EPSS scores, CISA KEV status, and automatically discovered vendor remediation guidance together.
 
-The application uses server-rendered HTML and CSS. React, Next.js, TypeScript, and a Node build are no longer required. A small optional JavaScript file provides autocomplete and search progress; the search form works without JavaScript.
+The application uses server-rendered HTML and CSS. React, Next.js, TypeScript, and a Node build are no longer required. Small optional JavaScript files provide autocomplete, incremental results, and copy actions; the search form works without JavaScript.
 
 ## Run locally
 
@@ -78,7 +78,7 @@ Each request owns an HTTPX async client. EPSS and KEV requests overlap using `as
 
 | Route | Behavior |
 | --- | --- |
-| `GET /api/search?q=<query>&limit=10` | Exact CVE lookup or keyword search; keyword limit clamped to 1-25 |
+| `GET /api/search?q=<query>&limit=10&startIndex=0` | Exact CVE lookup or paginated keyword search; per-page limit clamped to 1-25 |
 | `GET /api/cve/<CVE-ID>` | NVD metadata enriched with EPSS and KEV |
 
 CVE identifiers are trimmed and normalized to uppercase. Empty search queries and invalid API CVE IDs return `400`. Missing NVD detail records return `404`; no search matches return `200` with an empty results list. NVD failures return `502`. Errors retain the `{"error": "message"}` shape.
@@ -106,7 +106,7 @@ Rules are evaluated in this order:
 
 Known high-priority signals still justify action when another source is missing, with an explicit incomplete-intelligence notice. Missing scores are never converted to zero. These thresholds are project heuristics, not a validated risk model or an organizational SLA. Asset exposure, business criticality, and compensating controls still require analyst judgment. A KEV listing does not prove that your own assets are compromised.
 
-The NVD metric preference remains CVSS 3.1, then 3.0, then 2.0. CVSS 4.0 support, pagination beyond the first result page, catalog caching, retries, and asset-aware prioritization are future work. Each live analysis downloads the KEV catalog; public source latency and rate limits affect availability.
+The NVD metric preference remains CVSS 3.1, then 3.0, then 2.0. CVSS 4.0 support and asset-aware prioritization are future work. Each live analysis downloads the KEV catalog; public source latency and rate limits affect availability.
 
 ## Tests
 
@@ -170,3 +170,24 @@ The detail page separates global priority from applicability, shows vendor guida
 Examples: `46300`, `fragn`, `fragnesia`, and `fragnesa` suggest CVE-2026-46300. `dirty frag`, `dirtyfrag`, and `dirty-frag` suggest CVE-2026-43284 and CVE-2026-43500 first, followed by Fragnesia labeled as related. Relationships do not turn related names into aliases. Matching supports one insertion, deletion, substitution, or adjacent transposition in names of at least five normalized letters. Browser suggestions appear immediately from the index, deduplicate by CVE ID, and link to the existing live analysis page. The index contains no current scores or exploitation claims; opening an analysis still requires NVD availability.
 
 Name and relationship mappings are sourced from [Microsoft's Dirty Frag advisory](https://www.microsoft.com/en-us/security/blog/2026/05/08/active-attack-dirty-frag-linux-vulnerability-expands-post-compromise-risk/) and [AWS's Fragnesia bulletin](https://aws.amazon.com/security/security-bulletins/2026-029-aws/).
+
+## Minimal search and triage interface
+
+The landing page centers on search. Results, analyses, and error pages share a compact sticky search header with keyboard autocomplete and a clear control. The light interface uses restrained status colors and an analysis panel grid: full-width priority assessment, side-by-side vulnerability overview and vendor remediation, visible CVSS/EPSS/KEV panels, and full-width sources and freshness. General supporting references remain visible in Sources and freshness; vendor remediation references have a separate expandable list there. Asset context and the handoff summary are also expandable. The grid uses three metric columns on desktop, two below 1000px, and a single column below 700px. Missing intelligence remains explicit and never becomes a zero score or a confirmed negative.
+
+Keyword results start with 10 matches. **Load more** appends 10 on demand until NVD's reported results are exhausted. Failures leave current rows intact and allow retry. Duplicate CVEs are not appended. Returning with browser Back restores loaded rows and scroll position using optional session storage (30-minute restoration window); no recent-search history is offered. A new search starts a fresh result list. Without JavaScript, GET search, next-page links, and native analysis disclosures remain usable.
+
+The search API adds `startIndex` (default `0`) and returns `startIndex` plus nullable `nextStartIndex` alongside its existing fields. Invalid or negative offsets return `400` with the existing error shape. The existing `limit` defaults and clamping remain unchanged. Exact CVE lookup does not paginate. Empty upstream pages terminate pagination even if a changing upstream total suggests more records. NVD results may change between requests; this is not a snapshot of the catalog.
+
+`/demo` search and suggestions use frozen fixtures only. The independent `index.html` contains the same rendered fixture analyses, embedded CSS, and local search interactions; it can be opened directly without a backend. With JavaScript disabled it exposes all fixture analyses through anchor links. Rebuild it after changing templates, styles, fixtures, or `static/offline.js`:
+
+```sh
+uv run python scripts/build_static_demo.py
+```
+
+Run interface regression checks alongside the existing suite:
+
+```sh
+uv run pytest -q
+node --test tests/search.test.cjs tests/ui.test.cjs
+```

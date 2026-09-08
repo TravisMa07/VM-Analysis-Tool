@@ -1,14 +1,13 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}VM Analysis Tool{% endblock %}</title>
-  <meta name="description" content="Search CVEs and review unified CVSS, EPSS, and KEV intelligence.">
-  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
-  <script src="{{ url_for('static', path='/search.js') }}" defer></script>
-</head>
-<body>
-  <main class="page-shell">{% block content %}{% endblock %}</main>
-</body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}VM Analysis Tool{% endblock %}</title>
+<meta name="description" content="Search vulnerabilities and prioritize remediation.">
+<link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+<script src="{{ url_for('static', path='/search.js') }}" defer></script>
+<script src="{{ url_for('static', path='/ui.js') }}" defer></script></head>
+<body>{% if demo %}<script id="demo-records" type="application/json">{{ demo_records|tojson }}</script>{% endif %}<a class="skip-link" href="#content">Skip to content</a>
+{% set landing = request.url.path == '/' and not request.query_params %}
+{% if not landing %}<header class="site-header"><a class="brand" href="{{ '/demo' if demo else '/' }}">VM Analysis</a>{% include 'search_form.html' %}</header>{% endif %}
+<main id="content" class="page-shell{% if cve is defined %} analysis-page{% endif %}">{% block content %}{% endblock %}</main>
+<footer>{{ 'Frozen illustrative data · not current intelligence' if demo else 'VM Analysis Tool' }} · <a href="{{ '/' if demo else '/demo' }}">{{ 'Live search' if demo else 'Explore demo' }}</a></footer>
+</body></html>
